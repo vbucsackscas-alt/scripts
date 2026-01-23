@@ -1,0 +1,218 @@
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+task.wait(0.5)
+
+local Options = Library.Options
+local Toggles = Library.Toggles
+local LocalPlayer = game.Players.LocalPlayer
+
+Library.ForceCheckbox = false
+Library.ShowToggleFrameInKeybinds = true
+
+local Window = Library:CreateWindow({
+	Title = "Hiders VS Seekers",
+	Footer = "By woq and xeno",
+	NotifySide = "Right",
+	ShowCustomCursor = true,
+})
+
+local Tabs = {
+	Main = Window:AddTab("Main", "user"),
+	Visuals = Window:AddTab("Visuals", "eye"),
+}
+
+-- List of seeker weapons
+local SeekerWeapons = {
+	"AA-12", "AK-74", "AK121P71", "AKM", "AKS-74U", "DVL-10 M2", "Desert Eagle",
+	"FAMAS G1", "Firework Gun", "Flamethrower", "G36E", "Glock 19", "Glock 19Switch",
+	"ICE ARM", "M1 Garand", "M1014", "M16A1", "M1891", "M249", "M27 IAR", "M4A1",
+	"M4A1 MODDED", "MICRO UZI", "MP-412", "Makarov PM", "Nuke", "P320", "PKM",
+	"PPSH 41", "Panzerfaust 3", "RPG-7", "RayGun", "Remington 870", "SKS",
+	"SNOPG-7", "STG-44", "Santa's M249", "Skorpion vz. 61", "Spyder AK-74",
+	"Suppressed Makarov PM", "The Powder Gun", "Tokarev AK-74", "USP-S", "mp7"
+}
+
+-- Variables
+local CurrentSeeker = nil
+local ESPEnabled = false
+local Highlights = {}
+
+-- Main Tab
+local MainGroup = Tabs.Main:AddLeftGroupbox("Seeker Finder", "search")
+
+MainGroup:AddLabel("Seeker: None", true)
+local seekerLabel = MainGroup:AddLabel("Username: Searching...")
+
+MainGroup:AddButton({
+	Text = "Find Seeker",
+	Func = function()
+		CurrentSeeker = nil
+		
+		-- Search all players
+		for _, player in pairs(game.Players:GetPlayers()) do
+			if player ~= LocalPlayer and player.Character then
+				-- Check character for seeker weapons
+				for _, weaponName in pairs(SeekerWeapons) do
+					if player.Character:FindFirstChild(weaponName) or 
+					   (player.Backpack and player.Backpack:FindFirstChild(weaponName)) then
+						CurrentSeeker = player
+						break
+					end
+				end
+				
+				if CurrentSeeker then break end
+			end
+		end
+		
+		-- Update display
+		if CurrentSeeker then
+			seekerLabel:SetText("Username: " .. CurrentSeeker.Name)
+			Library:Notify({
+				Title = "🔍 Seeker Found!",
+				Description = "Seeker: " .. CurrentSeeker.Name,
+				Time = 5,
+			})
+		else
+			seekerLabel:SetText("Username: Not Found")
+			Library:Notify({
+				Title = "❌ No Seeker",
+				Description = "No seeker found in server",
+				Time = 3,
+			})
+		end
+		
+		-- Update ESP if enabled
+		if ESPEnabled then
+			updateESP()
+		end
+	end,
+	Tooltip = "Scan all players to find the seeker",
+})
+
+MainGroup:AddDivider()
+MainGroup:AddLabel("How it works:", true)
+MainGroup:AddLabel("Checks all players for seeker guns")
+MainGroup:AddLabel("Seeker = has weapon from list")
+
+-- Visuals Tab
+local VisualsGroup = Tabs.Visuals:AddLeftGroupbox("ESP", "eye")
+
+VisualsGroup:AddToggle("EnableESP", {
+	Text = "Enable ESP",
+	Default = false,
+	Callback = function(Value)
+		ESPEnabled = Value
+		
+		if Value then
+			updateESP()
+			Library:Notify({
+				Title = "ESP Enabled",
+				Description = "Green = Hiders | Red = Seeker",
+				Time = 2,
+			})
+		else
+			clearESP()
+			Library:Notify({
+				Title = "ESP Disabled",
+				Description = "All highlights removed",
+				Time = 1,
+			})
+		end
+	end,
+	Tooltip = "Highlight players (Green = Hiders, Red = Seeker)",
+})
+
+VisualsGroup:AddDivider()
+VisualsGroup:AddLabel("Colors:", true)
+VisualsGroup:AddLabel("🟢 Green = Hiders (Safe)")
+VisualsGroup:AddLabel("🔴 Red = Seeker (Danger)")
+
+-- ESP Functions
+function createHighlight(player)
+	if not player.Character then return end
+	
+	-- Remove old highlight if exists
+	if Highlights[player] then
+		Highlights[player]:Destroy()
+	end
+	
+	-- Create new highlight
+	local highlight = Instance.new("Highlight")
+	highlight.Parent = player.Character
+	highlight.Adornee = player.Character
+	highlight.FillTransparency = 0.5
+	highlight.OutlineTransparency = 0
+	
+	-- Set color based on if they're the seeker
+	if player == CurrentSeeker then
+		highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Red
+		highlight.OutlineColor = Color3.fromRGB(200, 0, 0)
+	else
+		highlight.FillColor = Color3.fromRGB(0, 255, 0) -- Green
+		highlight.OutlineColor = Color3.fromRGB(0, 200, 0)
+	end
+	
+	Highlights[player] = highlight
+end
+
+function updateESP()
+	if not ESPEnabled then return end
+	
+	for _, player in pairs(game.Players:GetPlayers()) do
+		if player ~= LocalPlayer then
+			createHighlight(player)
+		end
+	end
+end
+
+function clearESP()
+	for _, highlight in pairs(Highlights) do
+		if highlight then
+			highlight:Destroy()
+		end
+	end
+	Highlights = {}
+end
+
+-- Auto-update when players spawn
+game.Players.PlayerAdded:Connect(function(player)
+	player.CharacterAdded:Connect(function()
+		if ESPEnabled then
+			task.wait(0.5)
+			createHighlight(player)
+		end
+	end)
+end)
+
+-- Update existing players
+for _, player in pairs(game.Players:GetPlayers()) do
+	if player ~= LocalPlayer then
+		player.CharacterAdded:Connect(function()
+			if ESPEnabled then
+				task.wait(0.5)
+				createHighlight(player)
+			end
+		end)
+	end
+end
+
+-- Theme & Save System
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+
+ThemeManager:SetFolder("HidersVsSeekers")
+SaveManager:SetFolder("HidersVsSeekers/Configs")
+
+Library.ToggleKeybind = Options.MenuKeybind
+
+-- Startup
+Library:Notify({
+	Title = "Hiders VS Seekers",
+	Description = "Script loaded! Press RightShift to toggle.",
+	Time = 3,
+})
