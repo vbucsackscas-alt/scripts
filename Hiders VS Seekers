@@ -14,7 +14,7 @@ Library.ShowToggleFrameInKeybinds = true
 
 local Window = Library:CreateWindow({
 	Title = "Hiders VS Seekers",
-	Footer = "By woq and xeno",
+	Footer = "Hydra Hub",
 	NotifySide = "Right",
 	ShowCustomCursor = true,
 })
@@ -22,6 +22,7 @@ local Window = Library:CreateWindow({
 local Tabs = {
 	Main = Window:AddTab("Main", "user"),
 	Visuals = Window:AddTab("Visuals", "eye"),
+	Settings = Window:AddTab("Settings", "settings"),
 }
 
 -- List of seeker weapons
@@ -78,7 +79,7 @@ MainGroup:AddButton({
 		else
 			seekerLabel:SetText("Username: Not Found")
 			Library:Notify({
-				Title = "❌ No Seeker",
+				Title = "No Seeker",
 				Description = "No seeker found in server",
 				Time = 3,
 			})
@@ -127,8 +128,8 @@ VisualsGroup:AddToggle("EnableESP", {
 
 VisualsGroup:AddDivider()
 VisualsGroup:AddLabel("Colors:", true)
-VisualsGroup:AddLabel("🟢 Green = Hiders (Safe)")
-VisualsGroup:AddLabel("🔴 Red = Seeker (Danger)")
+VisualsGroup:AddLabel("Green = Hiders")
+VisualsGroup:AddLabel("Red = Seeker)")
 
 -- ESP Functions
 function createHighlight(player)
@@ -199,20 +200,93 @@ for _, player in pairs(game.Players:GetPlayers()) do
 	end
 end
 
--- Theme & Save System
+-- UI Settings
+local MenuGroup = Tabs.Settings:AddLeftGroupbox("Menu")
+
+MenuGroup:AddToggle("KeybindMenuOpen", {
+	Default = Library.KeybindFrame.Visible,
+	Text = "Open Keybind Menu",
+	Callback = function(value)
+		Library.KeybindFrame.Visible = value
+	end,
+})
+
+MenuGroup:AddToggle("ShowCustomCursor", {
+	Text = "Custom Cursor",
+	Default = true,
+	Callback = function(Value)
+		Library.ShowCustomCursor = Value
+	end,
+})
+
+MenuGroup:AddDropdown("NotificationSide", {
+	Values = { "Left", "Right" },
+	Default = "Right",
+	Text = "Notification Side",
+	Callback = function(Value)
+		Library:SetNotifySide(Value)
+	end,
+})
+
+MenuGroup:AddDivider()
+MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { 
+	Default = "RightShift", 
+	NoUI = true, 
+	Text = "Menu keybind" 
+})
+
+MenuGroup:AddButton({
+	Text = "Unload Script",
+	Func = function()
+		Library:Unload()
+	end,
+	Tooltip = "Completely unload the script",
+})
+
+MenuGroup:AddDivider()
+MenuGroup:AddLabel("Hydra Hub v1.0")
+MenuGroup:AddLabel("Hiders VS Seekers Script")
+
+-- Hand the library over to our managers
 ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
+
+-- Ignore keys that are used by ThemeManager
 SaveManager:IgnoreThemeSettings()
+
+-- Adds our MenuKeybind to the ignore list
 SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
 
+-- Set folders
 ThemeManager:SetFolder("HidersVsSeekers")
 SaveManager:SetFolder("HidersVsSeekers/Configs")
 
+-- Builds our config menu on the right side of our tab
+SaveManager:BuildConfigSection(Tabs.Settings)
+
+-- Builds our theme menu (with plenty of built in themes) on the left side
+ThemeManager:ApplyToTab(Tabs.Settings)
+
+-- Set the toggle keybind
 Library.ToggleKeybind = Options.MenuKeybind
+
+-- Apply dark green theme on startup
+task.spawn(function()
+	task.wait(0.2)
+	Library:SetTheme({
+		Background = Color3.fromRGB(10, 20, 10),
+		MainFrame = Color3.fromRGB(15, 30, 15),
+		Accent = Color3.fromRGB(0, 180, 0),
+		Outline = Color3.fromRGB(0, 120, 0),
+		Inline = Color3.fromRGB(20, 40, 20),
+		Font = Color3.fromRGB(200, 255, 200),
+		FontOutline = Color3.fromRGB(0, 0, 0),
+	})
+end)
 
 -- Startup
 Library:Notify({
-	Title = "Hiders VS Seekers",
-	Description = "Script loaded! Press RightShift to toggle.",
-	Time = 3,
+	Title = "Hydra Hub",
+	Description = "Script loaded! Press RightShift to toggle UI.",
+	Time = 4,
 })
