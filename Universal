@@ -5,7 +5,6 @@
 -- ╚══════════════════════════════════════════════════════════════════════════╝
 
 local loadStart = tick()
-print("Hydra Universal V3.0 Loading...")
 
 --[[
     ═══════════════════════════════════════════════════════════════════════════
@@ -244,6 +243,7 @@ local Settings = {
         Whitelist = {},
         Blacklist = {},
         WhitelistMode = false,
+        FriendProtection = false,
         
         -- Anti-Detection
         Humanize = false,
@@ -645,13 +645,23 @@ local Settings = {
         
         -- Information Display
         ShowFPS = true,
-        FPSPosition = "TopRight",
         ShowPing = true,
-        PingPosition = "TopRight",
-        ShowCoordinates = false,
-        ShowPlayerCount = true,
-        ShowServerTime = false,
-        ShowVelocity = false,
+        
+        -- Performance
+        FPSUnlocker = false,
+        ReduceLag = false,
+        
+        -- Movement
+        WalkSpeed = 16,
+        SpeedHack = false,
+        JumpPower = 50,
+        JumpHack = false,
+        InfiniteJump = false,
+        NoClip = false,
+        Flight = false,
+        FlightSpeed = 50,
+        NoFallDamage = false,
+        WaterWalk = false,
         
         -- Name Spoof
         FakeName = false,
@@ -2410,17 +2420,6 @@ function Aimbot:ShouldKeepTarget()
         return false
     end
     
-    -- Keep target
-    return true
-end
-        return false
-    end
-    
-    -- Team check
-    if Settings.Aimbot.TeamCheck and Utils.IsTeammate(self.Target) then
-        return false
-    end
-    
     -- Don't switch targets while locked - KEEP CURRENT TARGET
     -- Only drop if invalid, not for "better" targets
     return true
@@ -2909,6 +2908,16 @@ function Aimbot:GetTarget()
         
         local targetRoot = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")
         if not targetRoot then continue end
+        
+        -- Whitelist check (manual whitelist)
+        if table.find(Settings.Aimbot.Whitelist, player.Name) then
+            continue
+        end
+        
+        -- Friend protection
+        if Settings.Aimbot.FriendProtection and player:IsFriendsWith(LocalPlayer.UserId) then
+            continue
+        end
         
         -- Whitelist mode
         if Settings.Aimbot.WhitelistMode then
@@ -4641,8 +4650,8 @@ end)
 
 -- Create Main Window
 local Window = Library:CreateWindow({
-    Title = "HYDRA UNIVERSAL V3",
-    Footer = "Universal Edition",
+    Title = "HYDRA UNIVERSAL",
+    Footer = "By xeno",
     NotifySide = "Right",
     ShowCustomCursor = true,
     Resizable = true,
@@ -4654,7 +4663,6 @@ local Tabs = {
     Aimbot = Window:AddTab("Aimbot", "crosshair"),
     ESP = Window:AddTab("ESP", "eye"),
     Visuals = Window:AddTab("Visuals", "palette"),
-    Movement = Window:AddTab("Movement", "zap"),
     Universal = Window:AddTab("Universal", "star"),
     Misc = Window:AddTab("Misc", "settings"),
     ["UI Settings"] = Window:AddTab("UI Settings", "sliders"),
@@ -4685,6 +4693,48 @@ AimbotMain:AddToggle("TeamCheck", {
         Settings.Aimbot.TeamCheck = Value
     end
 })
+
+AimbotMain:AddToggle("FriendProtection", {
+    Text = "Friend Protection",
+    Default = false,
+    Tooltip = "Never target players on your friends list",
+    Callback = function(Value)
+        Settings.Aimbot.FriendProtection = Value
+    end
+})
+
+AimbotMain:AddDivider()
+
+AimbotMain:AddInput("WhitelistPlayer", {
+    Default = "",
+    Numeric = false,
+    Finished = true,
+    Text = "Whitelist Player",
+    Tooltip = "Enter player name to whitelist",
+    Placeholder = "Username...",
+    Callback = function(Value)
+        if Value ~= "" then
+            if not table.find(Settings.Aimbot.Whitelist, Value) then
+                table.insert(Settings.Aimbot.Whitelist, Value)
+                Library:Notify("Whitelist", "Added " .. Value .. " to whitelist", 3)
+            else
+                Library:Notify("Whitelist", Value .. " is already whitelisted", 3)
+            end
+        end
+    end
+})
+
+AimbotMain:AddButton({
+    Text = "Clear Whitelist",
+    Func = function()
+        Settings.Aimbot.Whitelist = {}
+        Library:Notify("Whitelist", "Cleared all whitelisted players", 3)
+    end,
+    DoubleClick = true,
+    Tooltip = "Double-click to clear"
+})
+
+AimbotMain:AddDivider()
 
 AimbotMain:AddToggle("VisibleCheck", {
     Text = "Visible Check",
@@ -5417,153 +5467,6 @@ VisualsCamera:AddToggle("NoCameraShake", {
 })
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- MOVEMENT TAB
--- ═══════════════════════════════════════════════════════════════════════════
-
-local MovementSpeed = Tabs.Movement:AddLeftGroupbox("Speed")
-
-MovementSpeed:AddToggle("SpeedEnabled", {
-    Text = "Speed Hack",
-    Default = Settings.Movement.SpeedEnabled,
-    Callback = function(Value)
-        Settings.Movement.SpeedEnabled = Value
-        if Value then
-            local humanoid = GetHumanoid()
-            if humanoid then
-                humanoid.WalkSpeed = Settings.Movement.WalkSpeed
-            end
-        else
-            local humanoid = GetHumanoid()
-            if humanoid then
-                humanoid.WalkSpeed = 16
-            end
-        end
-    end
-})
-
-MovementSpeed:AddSlider("WalkSpeed", {
-    Text = "Walk Speed",
-    Default = Settings.Movement.WalkSpeed,
-    Min = 16,
-    Max = 200,
-    Rounding = 0,
-    Compact = false,
-    Callback = function(Value)
-        Settings.Movement.WalkSpeed = Value
-        if Settings.Movement.SpeedEnabled then
-            local humanoid = GetHumanoid()
-            if humanoid then
-                humanoid.WalkSpeed = Value
-            end
-        end
-    end
-})
-
-local MovementJump = Tabs.Movement:AddRightGroupbox("Jump")
-
-MovementJump:AddToggle("JumpEnabled", {
-    Text = "Jump Power",
-    Default = Settings.Movement.JumpEnabled,
-    Callback = function(Value)
-        Settings.Movement.JumpEnabled = Value
-        if Value then
-            local humanoid = GetHumanoid()
-            if humanoid then
-                humanoid.JumpPower = Settings.Movement.JumpPower
-            end
-        else
-            local humanoid = GetHumanoid()
-            if humanoid then
-                humanoid.JumpPower = 50
-            end
-        end
-    end
-})
-
-MovementJump:AddSlider("JumpPower", {
-    Text = "Jump Power",
-    Default = Settings.Movement.JumpPower,
-    Min = 50,
-    Max = 200,
-    Rounding = 0,
-    Compact = false,
-    Callback = function(Value)
-        Settings.Movement.JumpPower = Value
-        if Settings.Movement.JumpEnabled then
-            local humanoid = GetHumanoid()
-            if humanoid then
-                humanoid.JumpPower = Value
-            end
-        end
-    end
-})
-
-MovementJump:AddToggle("InfiniteJump", {
-    Text = "Infinite Jump",
-    Default = Settings.Movement.InfiniteJump,
-    Callback = function(Value)
-        Settings.Movement.InfiniteJump = Value
-    end
-})
-
-MovementJump:AddToggle("BunnyHop", {
-    Text = "Bunny Hop",
-    Default = Settings.Movement.BunnyHop,
-    Callback = function(Value)
-        Settings.Movement.BunnyHop = Value
-    end
-})
-
-local MovementFlight = Tabs.Movement:AddLeftGroupbox("Flight")
-
-MovementFlight:AddToggle("Flight", {
-    Text = "Flight",
-    Default = Settings.Movement.Flight,
-    Tooltip = "Enable flight mode",
-    Callback = function(Value)
-        Settings.Movement.Flight = Value
-    end
-})
-
-MovementFlight:AddSlider("FlightSpeed", {
-    Text = "Flight Speed",
-    Default = Settings.Movement.FlightSpeed,
-    Min = 10,
-    Max = 200,
-    Rounding = 0,
-    Compact = false,
-    Callback = function(Value)
-        Settings.Movement.FlightSpeed = Value
-    end
-})
-
-local MovementOther = Tabs.Movement:AddRightGroupbox("Other")
-
-MovementOther:AddToggle("Noclip", {
-    Text = "Noclip",
-    Default = Settings.Movement.Noclip,
-    Callback = function(Value)
-        Settings.Movement.Noclip = Value
-    end
-})
-
-MovementOther:AddToggle("NoFallDamage", {
-    Text = "No Fall Damage",
-    Default = Settings.Movement.NoFallDamage,
-    Callback = function(Value)
-        Settings.Movement.NoFallDamage = Value
-    end
-})
-
-MovementOther:AddToggle("WaterWalk", {
-    Text = "Water Walk",
-    Default = Settings.Movement.WaterWalk,
-    Callback = function(Value)
-        Settings.Movement.WaterWalk = Value
-    end
-})
-
--- ═══════════════════════════════════════════════════════════════════════════
 -- ═══════════════════════════════════════════════════════════════════════════
 -- UNIVERSAL TAB
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -5804,6 +5707,291 @@ UniversalCharacter:AddSlider("FreecamSpeed", {
 -- MISC TAB
 -- ═══════════════════════════════════════════════════════════════════════════
 
+-- FPS/Ping Display System
+local DisplayGUI = Instance.new("ScreenGui")
+DisplayGUI.Name = "HydraDisplays"
+DisplayGUI.ResetOnSpawn = false
+DisplayGUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+DisplayGUI.Parent = game.CoreGui
+
+local FPSLabel = Instance.new("TextLabel")
+FPSLabel.Name = "FPSDisplay"
+FPSLabel.Size = UDim2.new(0, 150, 0, 30)
+FPSLabel.Position = UDim2.new(1, -160, 0, 10)
+FPSLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+FPSLabel.BackgroundTransparency = 0.3
+FPSLabel.BorderSizePixel = 0
+FPSLabel.Text = "FPS: 0"
+FPSLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+FPSLabel.TextSize = 16
+FPSLabel.Font = Enum.Font.GothamBold
+FPSLabel.TextXAlignment = Enum.TextXAlignment.Left
+FPSLabel.Visible = false
+FPSLabel.Parent = DisplayGUI
+
+local FPSCorner = Instance.new("UICorner")
+FPSCorner.CornerRadius = UDim.new(0, 6)
+FPSCorner.Parent = FPSLabel
+
+local FPSPadding = Instance.new("UIPadding")
+FPSPadding.PaddingLeft = UDim.new(0, 10)
+FPSPadding.Parent = FPSLabel
+
+local PingLabel = Instance.new("TextLabel")
+PingLabel.Name = "PingDisplay"
+PingLabel.Size = UDim2.new(0, 150, 0, 30)
+PingLabel.Position = UDim2.new(1, -160, 0, 45)
+PingLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+PingLabel.BackgroundTransparency = 0.3
+PingLabel.BorderSizePixel = 0
+PingLabel.Text = "Ping: 0ms"
+PingLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+PingLabel.TextSize = 16
+PingLabel.Font = Enum.Font.GothamBold
+PingLabel.TextXAlignment = Enum.TextXAlignment.Left
+PingLabel.Visible = false
+PingLabel.Parent = DisplayGUI
+
+local PingCorner = Instance.new("UICorner")
+PingCorner.CornerRadius = UDim.new(0, 6)
+PingCorner.Parent = PingLabel
+
+local PingPadding = Instance.new("UIPadding")
+PingPadding.PaddingLeft = UDim.new(0, 10)
+PingPadding.Parent = PingLabel
+
+-- FPS Counter
+local lastFrameTime = tick()
+local frameCount = 0
+local currentFPS = 0
+
+RunService.RenderStepped:Connect(function()
+    frameCount = frameCount + 1
+    local now = tick()
+    if now - lastFrameTime >= 1 then
+        currentFPS = frameCount
+        frameCount = 0
+        lastFrameTime = now
+        
+        if Settings.Misc.ShowFPS then
+            FPSLabel.Text = "FPS: " .. currentFPS
+            local color = currentFPS >= 60 and Color3.fromRGB(0, 255, 0) or 
+                         currentFPS >= 30 and Color3.fromRGB(255, 255, 0) or 
+                         Color3.fromRGB(255, 0, 0)
+            FPSLabel.TextColor3 = color
+        end
+    end
+end)
+
+-- Ping Counter
+task.spawn(function()
+    while task.wait(1) do
+        if Settings.Misc.ShowPing then
+            local ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()
+            PingLabel.Text = string.format("Ping: %dms", math.floor(ping))
+            local color = ping <= 100 and Color3.fromRGB(0, 255, 0) or 
+                         ping <= 200 and Color3.fromRGB(255, 255, 0) or 
+                         Color3.fromRGB(255, 0, 0)
+            PingLabel.TextColor3 = color
+        end
+    end
+end)
+
+-- Performance Section
+local MiscPerformance = Tabs.Misc:AddLeftGroupbox("Performance")
+
+MiscPerformance:AddToggle("FPSUnlocker", {
+    Text = "FPS Unlocker",
+    Default = false,
+    Tooltip = "Unlock FPS cap (may not work on all executors)",
+    Callback = function(Value)
+        Settings.Misc.FPSUnlocker = Value
+        if Value then
+            setfpscap(999)
+        else
+            setfpscap(60)
+        end
+    end
+})
+
+MiscPerformance:AddSlider("FPSCap", {
+    Text = "FPS Cap",
+    Default = 60,
+    Min = 30,
+    Max = 360,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+        if not Settings.Misc.FPSUnlocker then
+            setfpscap(Value)
+        end
+    end
+})
+
+MiscPerformance:AddToggle("ReduceLag", {
+    Text = "Reduce Lag",
+    Default = false,
+    Tooltip = "Removes some visual effects to improve performance",
+    Callback = function(Value)
+        Settings.Misc.ReduceLag = Value
+        if Value then
+            game:GetService("Lighting").GlobalShadows = false
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        else
+            game:GetService("Lighting").GlobalShadows = true
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
+        end
+    end
+})
+
+-- Display Section
+local MiscDisplay = Tabs.Misc:AddRightGroupbox("Display")
+
+MiscDisplay:AddToggle("ShowFPS", {
+    Text = "Show FPS",
+    Default = Settings.Misc.ShowFPS,
+    Callback = function(Value)
+        Settings.Misc.ShowFPS = Value
+        FPSLabel.Visible = Value
+    end
+})
+
+MiscDisplay:AddToggle("ShowPing", {
+    Text = "Show Ping",
+    Default = Settings.Misc.ShowPing,
+    Callback = function(Value)
+        Settings.Misc.ShowPing = Value
+        PingLabel.Visible = Value
+    end
+})
+
+-- Movement - Speed Section
+local MiscSpeed = Tabs.Misc:AddLeftGroupbox("Speed")
+
+MiscSpeed:AddToggle("SpeedHack", {
+    Text = "Enable Speed Hack",
+    Default = false,
+    Callback = function(Value)
+        Settings.Misc.SpeedHack = Value
+        local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = Value and Settings.Misc.WalkSpeed or 16
+        end
+    end
+})
+
+MiscSpeed:AddSlider("WalkSpeed", {
+    Text = "Walk Speed",
+    Default = 16,
+    Min = 16,
+    Max = 200,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+        Settings.Misc.WalkSpeed = Value
+        if Settings.Misc.SpeedHack then
+            local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid.WalkSpeed = Value
+            end
+        end
+    end
+})
+
+-- Movement - Jump Section
+local MiscJump = Tabs.Misc:AddRightGroupbox("Jump")
+
+MiscJump:AddToggle("JumpHack", {
+    Text = "Enable Jump Hack",
+    Default = false,
+    Callback = function(Value)
+        Settings.Misc.JumpHack = Value
+        local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.JumpPower = Value and Settings.Misc.JumpPower or 50
+        end
+    end
+})
+
+MiscJump:AddSlider("JumpPower", {
+    Text = "Jump Power",
+    Default = 50,
+    Min = 50,
+    Max = 300,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+        Settings.Misc.JumpPower = Value
+        if Settings.Misc.JumpHack then
+            local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid.JumpPower = Value
+            end
+        end
+    end
+})
+
+MiscJump:AddToggle("InfiniteJump", {
+    Text = "Infinite Jump",
+    Default = false,
+    Callback = function(Value)
+        Settings.Misc.InfiniteJump = Value
+    end
+})
+
+-- Movement - Flight Section
+local MiscFlight = Tabs.Misc:AddLeftGroupbox("Flight")
+
+MiscFlight:AddToggle("Flight", {
+    Text = "Enable Flight",
+    Default = false,
+    Tooltip = "Use WASD to fly, Space/Shift for up/down",
+    Callback = function(Value)
+        Settings.Misc.Flight = Value
+    end
+})
+
+MiscFlight:AddSlider("FlightSpeed", {
+    Text = "Flight Speed",
+    Default = 50,
+    Min = 10,
+    Max = 200,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+        Settings.Misc.FlightSpeed = Value
+    end
+})
+
+-- Movement - Other Section  
+local MiscOther = Tabs.Misc:AddRightGroupbox("Other Movement")
+
+MiscOther:AddToggle("NoClip", {
+    Text = "NoClip",
+    Default = false,
+    Tooltip = "Walk through walls",
+    Callback = function(Value)
+        Settings.Misc.NoClip = Value
+    end
+})
+
+MiscOther:AddToggle("NoFallDamage", {
+    Text = "No Fall Damage",
+    Default = false,
+    Callback = function(Value)
+        Settings.Misc.NoFallDamage = Value
+    end
+})
+
+MiscOther:AddToggle("WaterWalk", {
+    Text = "Water Walk",
+    Default = false,
+    Callback = function(Value)
+        Settings.Misc.WaterWalk = Value
+    end
+})
+
+-- Utilities Section
 local MiscUtilities = Tabs.Misc:AddLeftGroupbox("Utilities")
 
 MiscUtilities:AddToggle("AntiAFK", {
@@ -5811,6 +5999,15 @@ MiscUtilities:AddToggle("AntiAFK", {
     Default = Settings.Misc.AntiAFK,
     Callback = function(Value)
         Settings.Misc.AntiAFK = Value
+        if Value then
+            local VirtualUser = game:GetService("VirtualUser")
+            game:GetService("Players").LocalPlayer.Idled:Connect(function()
+                if Settings.Misc.AntiAFK then
+                    VirtualUser:CaptureController()
+                    VirtualUser:ClickButton2(Vector2.new())
+                end
+            end)
+        end
     end
 })
 
@@ -5823,32 +6020,7 @@ MiscUtilities:AddToggle("ClickTP", {
     end
 })
 
-local MiscInfo = Tabs.Misc:AddRightGroupbox("Information")
-
-MiscInfo:AddToggle("ShowFPS", {
-    Text = "Show FPS",
-    Default = Settings.Misc.ShowFPS,
-    Callback = function(Value)
-        Settings.Misc.ShowFPS = Value
-    end
-})
-
-MiscInfo:AddToggle("ShowPing", {
-    Text = "Show Ping",
-    Default = Settings.Misc.ShowPing,
-    Callback = function(Value)
-        Settings.Misc.ShowPing = Value
-    end
-})
-
-MiscInfo:AddToggle("ShowCoordinates", {
-    Text = "Show Coordinates",
-    Default = Settings.Misc.ShowCoordinates,
-    Callback = function(Value)
-        Settings.Misc.ShowCoordinates = Value
-    end
-})
-
+-- Server Section
 local MiscServer = Tabs.Misc:AddLeftGroupbox("Server")
 
 MiscServer:AddToggle("AutoRejoin", {
@@ -5857,8 +6029,66 @@ MiscServer:AddToggle("AutoRejoin", {
     Tooltip = "Automatically rejoin if kicked",
     Callback = function(Value)
         Settings.Misc.AutoRejoin = Value
+        if Value then
+            game:GetService("CoreGui").RobloxPromptGui.promptOverlay.ChildAdded:Connect(function(child)
+                if child.Name == 'ErrorPrompt' and child:FindFirstChild('MessageArea') and child.MessageArea:FindFirstChild('ErrorFrame') then
+                    game:GetService("TeleportService"):Teleport(game.PlaceId)
+                end
+            end)
+        end
     end
 })
+
+MiscServer:AddButton({
+    Text = "Rejoin Server",
+    Func = function()
+        game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+    end
+})
+
+MiscServer:AddButton({
+    Text = "Server Hop",
+    Func = function()
+        local servers = {}
+        local req = request({
+            Url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100", game.PlaceId)
+        })
+        local body = game:GetService("HttpService"):JSONDecode(req.Body)
+        
+        if body and body.data then
+            for i, v in next, body.data do
+                if v.id ~= game.JobId then
+                    table.insert(servers, v.id)
+                end
+            end
+        end
+        
+        if #servers > 0 then
+            game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, servers[math.random(1, #servers)], LocalPlayer)
+        end
+    end
+})
+
+-- NoClip Implementation
+RunService.Stepped:Connect(function()
+    if Settings.Misc.NoClip and LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- Infinite Jump Implementation
+game:GetService("UserInputService").JumpRequest:Connect(function()
+    if Settings.Misc.InfiniteJump and LocalPlayer.Character then
+        local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- UI SETTINGS TAB
@@ -5930,9 +6160,6 @@ SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
 
 SaveManager:LoadAutoloadConfig()
-
-print("Hydra Universal V3.0 Loaded Successfully!")
-print(string.format("Loaded in %.2fs", tick() - loadStart))
 Library:Notify("Hydra Universal", "Loaded successfully! Press INSERT to toggle UI", 5)
 
 -- END OF SCRIPT
