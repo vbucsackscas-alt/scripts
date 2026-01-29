@@ -1,292 +1,503 @@
+-- Hydra Blind Shot - Main + Settings with UI
+-- Adds toggles for auto-skip (claim cached rewards) and auto-buy spin
+
+-- Load UI Library
 local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
 local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
 
-task.wait(0.5)
-
 local Options = Library.Options
 local Toggles = Library.Toggles
-local LocalPlayer = game.Players.LocalPlayer
 
-Library.ForceCheckbox = false
-Library.ShowToggleFrameInKeybinds = true
+-- Settings
+local settings = {
+	AutoSkipSpins = false,
+	AutoBuySpin = false,
+	SkipDelay = 0.5,
+	BuyDelay = 1.0,
+	PlayerESP = false,
+	HighlightPlayers = false,
+	RevealPlayers = false,
+	AimDetection = false,
+	UnanchorHRP = false,
+}
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 
+-- ESP Storage
+local espObjects = {}
+local highlightObjects = {}
+
+-- Services
+local RS = game:GetService("ReplicatedStorage")
+local Net = RS:WaitForChild("NetRayRemotes")
+
+-- Helper functions
+local function claimCachedRewards()
+	local args = {
+		buffer.fromstring("@\018ClaimCachedRewards")
+	}
+	local ok, err = pcall(function()
+		Net:WaitForChild("Spinner_RF"):InvokeServer(unpack(args))
+	end)
+	if not ok then
+		warn("claimCachedRewards error:", err)
+	end
+end
+
+local function buySpin()
+	local args = {
+		buffer.fromstring("\241C\026\000\000\002\t\a\ashopKey\a\fCashCrate_1x\n"),
+		{}
+	}
+	local ok, err = pcall(function()
+		Net:WaitForChild("Shop_Purchase"):FireServer(unpack(args))
+	end)
+	if not ok then
+		warn("buySpin error:", err)
+	end
+end
+
+-- Create UI Window
 local Window = Library:CreateWindow({
-	Title = "Hiders VS Seekers",
-	Footer = "Hydra Hub",
+	Title = "Hydra Hub",
+	Footer = "Blind Shot",
 	NotifySide = "Right",
 	ShowCustomCursor = true,
 })
 
+-- Add unload handler
+Library:OnUnload(function()
+	print("Hydra Hub unloaded!")
+	-- Clean up ESP
+	for _, obj in pairs(espObjects) do
+		if obj then obj:Destroy() end
+	end
+	for _, obj in pairs(highlightObjects) do
+		if obj then obj:Destroy() end
+	end
+end)
+
+-- Create Tabs
 local Tabs = {
-	Main = Window:AddTab("Main", "user"),
+	Main = Window:AddTab("Main", "target"),
 	Visuals = Window:AddTab("Visuals", "eye"),
-	Settings = Window:AddTab("Settings", "settings"),
+	["UI Settings"] = Window:AddTab("UI Settings", "settings"),
 }
 
--- List of seeker weapons
-local SeekerWeapons = {
-	"AA-12", "AK-74", "AK121P71", "AKM", "AKS-74U", "DVL-10 M2", "Desert Eagle",
-	"FAMAS G1", "Firework Gun", "Flamethrower", "G36E", "Glock 19", "Glock 19Switch",
-	"ICE ARM", "M1 Garand", "M1014", "M16A1", "M1891", "M249", "M27 IAR", "M4A1",
-	"M4A1 MODDED", "MICRO UZI", "MP-412", "Makarov PM", "Nuke", "P320", "PKM",
-	"PPSH 41", "Panzerfaust 3", "RPG-7", "RayGun", "Remington 870", "SKS",
-	"SNOPG-7", "STG-44", "Santa's M249", "Skorpion vz. 61", "Spyder AK-74",
-	"Suppressed Makarov PM", "The Powder Gun", "Tokarev AK-74", "USP-S", "mp7"
-}
+-- Main Group
+local MainGroup = Tabs.Main:AddLeftGroupbox("Auto Features")
 
--- Variables
-local CurrentSeeker = nil
-local ESPEnabled = false
-local Highlights = {}
-
--- Main Tab
-local MainGroup = Tabs.Main:AddLeftGroupbox("Seeker Finder", "search")
-
-MainGroup:AddLabel("Seeker: None", true)
-local seekerLabel = MainGroup:AddLabel("Username: Searching...")
-
-MainGroup:AddButton({
-	Text = "Find Seeker",
-	Func = function()
-		CurrentSeeker = nil
-		
-		-- Search all players
-		for _, player in pairs(game.Players:GetPlayers()) do
-			if player ~= LocalPlayer and player.Character then
-				-- Check character for seeker weapons
-				for _, weaponName in pairs(SeekerWeapons) do
-					if player.Character:FindFirstChild(weaponName) or 
-					   (player.Backpack and player.Backpack:FindFirstChild(weaponName)) then
-						CurrentSeeker = player
-						break
-					end
-				end
-				
-				if CurrentSeeker then break end
-			end
-		end
-		
-		-- Update display
-		if CurrentSeeker then
-			seekerLabel:SetText("Username: " .. CurrentSeeker.Name)
-			Library:Notify({
-				Title = "🔍 Seeker Found!",
-				Description = "Seeker: " .. CurrentSeeker.Name,
-				Time = 5,
-			})
-		else
-			seekerLabel:SetText("Username: Not Found")
-			Library:Notify({
-				Title = "No Seeker",
-				Description = "No seeker found in server",
-				Time = 3,
-			})
-		end
-		
-		-- Update ESP if enabled
-		if ESPEnabled then
-			updateESP()
-		end
-	end,
-	Tooltip = "Scan all players to find the seeker",
-})
-
-MainGroup:AddDivider()
-MainGroup:AddLabel("How it works:", true)
-MainGroup:AddLabel("Checks all players for seeker guns")
-MainGroup:AddLabel("Seeker = has weapon from list")
-
--- Visuals Tab
-local VisualsGroup = Tabs.Visuals:AddLeftGroupbox("ESP", "eye")
-
-VisualsGroup:AddToggle("EnableESP", {
-	Text = "Enable ESP",
+-- Auto Skip Spins Toggle
+MainGroup:AddToggle("AutoSkipToggle", {
+	Text = "Auto Skip Spins",
+	Tooltip = "Automatically claims cached rewards",
 	Default = false,
 	Callback = function(Value)
-		ESPEnabled = Value
-		
-		if Value then
-			updateESP()
-			Library:Notify({
-				Title = "ESP Enabled",
-				Description = "Green = Hiders | Red = Seeker",
-				Time = 2,
-			})
-		else
-			clearESP()
-			Library:Notify({
-				Title = "ESP Disabled",
-				Description = "All highlights removed",
-				Time = 1,
-			})
-		end
+		settings.AutoSkipSpins = Value
+		print("Auto Skip Spins:", Value)
 	end,
-	Tooltip = "Highlight players (Green = Hiders, Red = Seeker)",
 })
 
-VisualsGroup:AddDivider()
-VisualsGroup:AddLabel("Colors:", true)
-VisualsGroup:AddLabel("Green = Hiders")
-VisualsGroup:AddLabel("Red = Seeker)")
+-- Auto Buy Spin Toggle
+MainGroup:AddToggle("AutoBuyToggle", {
+	Text = "Auto Buy Spin",
+	Tooltip = "Automatically purchases spins",
+	Default = false,
+	Callback = function(Value)
+		settings.AutoBuySpin = Value
+		print("Auto Buy Spin:", Value)
+	end,
+})
+
+-- Unanchor HRP Toggle
+MainGroup:AddToggle("UnanchorHRPToggle", {
+	Text = "Unfreeze character (IN SHOOTING STAGE)",
+	Tooltip = "xeno was here i think",
+	Default = false,
+	Callback = function(Value)
+		settings.UnanchorHRP = Value
+		print("Unanchor HRP:", Value)
+	end,
+})
+
+-- Settings Group
+local SettingsGroup = Tabs.Main:AddRightGroupbox("Settings")
+
+-- Skip Delay Slider
+SettingsGroup:AddSlider("SkipDelay", {
+	Text = "Skip Delay (s)",
+	Tooltip = "Delay between auto skip attempts",
+	Default = 0.5,
+	Min = 0.1,
+	Max = 5,
+	Rounding = 2,
+	Callback = function(Value)
+		settings.SkipDelay = Value
+	end,
+})
+
+-- Buy Delay Slider
+SettingsGroup:AddSlider("BuyDelay", {
+	Text = "Buy Delay (s)",
+	Tooltip = "Delay between auto buy attempts",
+	Default = 1.0,
+	Min = 0.1,
+	Max = 10,
+	Rounding = 2,
+	Callback = function(Value)
+		settings.BuyDelay = Value
+	end,
+})
+
+-- Visuals Group
+local VisualsGroup = Tabs.Visuals:AddLeftGroupbox("ESP & Visuals")
+
+-- Player ESP Toggle
+VisualsGroup:AddToggle("PlayerESPToggle", {
+	Text = "Player ESP",
+	Tooltip = "Shows player names and distance through walls",
+	Default = false,
+	Callback = function(Value)
+		settings.PlayerESP = Value
+		if not Value then
+			-- Clear ESP
+			for _, obj in pairs(espObjects) do
+				if obj then obj:Destroy() end
+			end
+			espObjects = {}
+		end
+	end,
+})
+
+-- Highlight Players Toggle
+VisualsGroup:AddToggle("HighlightPlayersToggle", {
+	Text = "Highlight Players",
+	Tooltip = "Adds highlight effect to all players",
+	Default = false,
+	Callback = function(Value)
+		settings.HighlightPlayers = Value
+		if not Value then
+			-- Clear highlights
+			for _, obj in pairs(highlightObjects) do
+				if obj then obj:Destroy() end
+			end
+			highlightObjects = {}
+		end
+	end,
+})
+
+-- Reveal Players Toggle
+VisualsGroup:AddToggle("RevealPlayersToggle", {
+	Text = "Reveal Hidden Players",
+	Tooltip = "Finds and reveals players hidden",
+	Default = false,
+	Callback = function(Value)
+		settings.RevealPlayers = Value
+		print("Reveal Players:", Value)
+	end,
+})
+
+-- Detection Group
+local DetectionGroup = Tabs.Visuals:AddRightGroupbox("Detection")
+
+-- Aim Detection Toggle
+DetectionGroup:AddToggle("AimDetectionToggle", {
+	Text = "Aim Warning",
+	Tooltip = "Notifies when someone is aiming at you",
+	Default = false,
+	Callback = function(Value)
+		settings.AimDetection = Value
+		print("Aim Detection:", Value)
+	end,
+})
+
+-- UI Settings
+Library:SetWatermarkVisibility(true)
+
+local FrameworkSettings = Tabs["UI Settings"]:AddLeftGroupbox("UI Settings")
+FrameworkSettings:AddToggle("KeybindFrameShow", { Text = "Keybind Frame", Default = false, Callback = function(Value) Library.KeybindFrame.Visible = Value end})
+FrameworkSettings:AddToggle("WatermarkFrameShow", {Text = "Watermark Frame", Default = true, Callback = function(Value) Library:SetWatermarkVisibility(Value) end})
+FrameworkSettings:AddButton({Text = "Unload UI", Func = function() Library:Unload() end})
+FrameworkSettings:AddDivider()
+FrameworkSettings:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { Default = "RightShift", NoUI = true, Text = "Menu keybind" })
+
+Library.ToggleKeybind = Options.MenuKeybind
+
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({"MenuKeybind"})
+ThemeManager:SetFolder("HydraBlindShot")
+SaveManager:SetFolder("HydraBlindShot/configs")
+SaveManager:BuildConfigSection(Tabs["UI Settings"])
+ThemeManager:ApplyToTab(Tabs["UI Settings"])
+SaveManager:LoadAutoloadConfig()
 
 -- ESP Functions
-function createHighlight(player)
-	if not player.Character then return end
+local function createESP(player)
+	if not player.Character or espObjects[player] then return end
 	
-	-- Remove old highlight if exists
-	if Highlights[player] then
-		Highlights[player]:Destroy()
-	end
+	local char = player.Character
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
 	
-	-- Create new highlight
+	local billboardGui = Instance.new("BillboardGui")
+	billboardGui.Name = "ESP_" .. player.Name
+	billboardGui.Adornee = hrp
+	billboardGui.Size = UDim2.new(0, 100, 0, 50)
+	billboardGui.StudsOffset = Vector3.new(0, 3, 0)
+	billboardGui.AlwaysOnTop = true
+	billboardGui.Parent = hrp
+	
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = player.Name
+	nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	nameLabel.TextStrokeTransparency = 0.5
+	nameLabel.Font = Enum.Font.SourceSansBold
+	nameLabel.TextSize = 14
+	nameLabel.Parent = billboardGui
+	
+	local distanceLabel = Instance.new("TextLabel")
+	distanceLabel.Size = UDim2.new(1, 0, 0.5, 0)
+	distanceLabel.Position = UDim2.new(0, 0, 0.5, 0)
+	distanceLabel.BackgroundTransparency = 1
+	distanceLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+	distanceLabel.TextStrokeTransparency = 0.5
+	distanceLabel.Font = Enum.Font.SourceSans
+	distanceLabel.TextSize = 12
+	distanceLabel.Parent = billboardGui
+	
+	espObjects[player] = billboardGui
+	
+	-- Update distance
+	task.spawn(function()
+		while billboardGui and billboardGui.Parent and settings.PlayerESP do
+			if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and hrp then
+				local distance = (LocalPlayer.Character.HumanoidRootPart.Position - hrp.Position).Magnitude
+				distanceLabel.Text = string.format("%.1f studs", distance)
+			end
+			task.wait(0.1)
+		end
+	end)
+end
+
+local function createHighlight(player)
+	if not player.Character or highlightObjects[player] then return end
+	
 	local highlight = Instance.new("Highlight")
-	highlight.Parent = player.Character
-	highlight.Adornee = player.Character
+	highlight.Name = "PlayerHighlight_" .. player.Name
+	highlight.FillColor = Color3.fromRGB(255, 0, 0)
+	highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
 	highlight.FillTransparency = 0.5
 	highlight.OutlineTransparency = 0
+	highlight.Parent = player.Character
 	
-	-- Set color based on if they're the seeker
-	if player == CurrentSeeker then
-		highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Red
-		highlight.OutlineColor = Color3.fromRGB(200, 0, 0)
-	else
-		highlight.FillColor = Color3.fromRGB(0, 255, 0) -- Green
-		highlight.OutlineColor = Color3.fromRGB(0, 200, 0)
-	end
-	
-	Highlights[player] = highlight
+	highlightObjects[player] = highlight
 end
 
-function updateESP()
-	if not ESPEnabled then return end
+local function revealPlayers()
+	-- Fire the CharacterVisibility_Reveal remote with the buffer data
+	pcall(function()
+		firesignal(
+			game:GetService("ReplicatedStorage").NetRayRemotes.CharacterVisibility_Reveal.OnClientEvent, 
+			buffer.fromstring("\241C\181\2\0\4\240\31\t\7\tPositions\t \0\0`E\255\165\252A\17\0\0\0@\16\195=\192\0\0\0\160\n\0\18@\0\0\0\128\180u4\8\0P\0\n\250i\191\24\00OOr\8\0\243\3\128\224\255\239?\0\0\0`e^\238\190\0\0\0\0\235\16\00IOr\24\0@\128\245\255\239(\0@\0\192p\148 \0\160\192\27\250i\191\31\142u\198\143f\0@`\205H=V\0@\128\208\255\17\8\0@@+K0\8\0A\224\255\184\228>\00Y\181\151>\0@`a_\232\16\0A \177\54\8\0!H\252v\0@\192\n\217\158\16\0@\0Cb\232(\0@\224\252\188\147\8\0\209@\166\182\228? \0\0p\220$\196\242\208\0@\192\209\173?\208\0\5j\00^M\30j\0@ =9\2082\0@\0\185\202\157J\0A`\215\240\238\16\00W\'\8\0\19@j\01\224{\216j\0@ m\244\238(\0A\0\140\251\127\8\0\144E7\208\191\5\185\8\199\7\208\0P\192\155\213;\192>\1\46\10\231|.f\0@\160\168\232\233.\0A\160\145\254gV\00\236\199\226\8\0@\160\28\131\192\22\1\"\224\2294\1@\224\205st\24\0@\128\251\199\2260\0@@b\144p\8\0\160\128\147\232\233?\5\133(\168\21f\0@\0%\2003V\0\4\204\0@`\156\145Ev\01`W\233l\1@\128\163\18b6\0@@\230\4\179N\0@\0\205N\1\8\0\4\204\0\"\192\86\1@\160\11\7\179(\02\160\213\195\220\0\193\162\229\239\191 \0\0\240h/\212\2446\1H\160<@8j\0A\128\222\194\1992\00\155\236\231\8\0@\128*\186\148Z\0A`\225=\229\16\0*\22\160\160\1\18\5j\0@@h@\229(\0@ N\217\150\8\0@@\225\233\231\160\1Q0a\231L\245j\0@ R\244<\196\0\" \11p\21\192b)\128\21\128\240\221\212\0@\224}\2065b\0@@4R\183B\0@\0B\196\226:\1\"@\241:\1@@C\185n \0@`>R\183\8\01\128E\154\16\0\160\224\225\221\239\191\31\208\28[\153:\1@\224\214\2116f\0\"\0\12f\0@\1286}6\224\0A\0@\241\133V\0\0\194\2\0\222\2\18\135V\0\3\15\0\0\7\0\16\240V\0\0\t\0\0\4\0#\160\135\214\2\0\r\0\0\4\0\0@\0\240\3\n\7\tTimestamp\5\247\250zi\n"), 
+			{}
+		)
+		print("[Reveal] Fired CharacterVisibility_Reveal remote")
+	end)
+end
+
+-- Aim Detection System
+local lastAimWarning = 0
+local function checkAimDetection()
+	if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
 	
-	for _, player in pairs(game.Players:GetPlayers()) do
-		if player ~= LocalPlayer then
-			createHighlight(player)
+	local myPos = LocalPlayer.Character.HumanoidRootPart.Position
+	local myHRP = LocalPlayer.Character.HumanoidRootPart
+	
+	for _, player in pairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character then
+			-- Look for any Tool in the character
+			for _, tool in pairs(player.Character:GetChildren()) do
+				if tool:IsA("Tool") then
+					-- Search for GunLaser in the tool and its descendants
+					local gunLaser = tool:FindFirstChild("GunLaser", true) -- recursive search
+					
+					if gunLaser and gunLaser:IsA("BasePart") then
+						-- Get the laser's position and direction
+						local laserPos = gunLaser.Position
+						local laserCFrame = gunLaser.CFrame
+						local laserForward = laserCFrame.LookVector
+						
+						-- Vector from laser to player
+						local toMe = (myPos - laserPos)
+						local distance = toMe.Magnitude
+						
+						-- Normalize direction to player
+						local directionToMe = toMe.Unit
+						
+						-- Calculate dot product (1 = pointing directly at, -1 = pointing away)
+						local dotProduct = laserForward:Dot(directionToMe)
+						
+						-- Also check if we're in front of the gun (not behind)
+						if dotProduct > 0.98 and distance < 500 then -- Very tight angle and reasonable range
+							local currentTime = tick()
+							if currentTime - lastAimWarning > 3 then -- 3 second cooldown
+								Library:Notify("⚠️ WARNING: " .. player.Name .. " is aiming at you!", 3)
+								lastAimWarning = currentTime
+								
+								-- Optional: Print debug info
+								print(string.format("[Aim Detection] %s aiming at you! Dot: %.3f, Distance: %.1f", 
+									player.Name, dotProduct, distance))
+							end
+						end
+					end
+				end
+			end
 		end
 	end
 end
 
-function clearESP()
-	for _, highlight in pairs(Highlights) do
-		if highlight then
-			highlight:Destroy()
+-- Main loops
+task.spawn(function()
+	while true do
+		if settings.AutoSkipSpins then
+			claimCachedRewards()
+		end
+		task.wait(settings.SkipDelay)
+	end
+end)
+
+task.spawn(function()
+	while true do
+		if settings.AutoBuySpin then
+			buySpin()
+		end
+		task.wait(settings.BuyDelay)
+	end
+end)
+
+task.spawn(function()
+	while true do
+		if settings.AutoBuyProduct then
+			buyProduct()
+		end
+		task.wait(settings.ProductDelay)
+	end
+end)
+
+-- ESP Update Loop
+RunService.RenderStepped:Connect(function()
+	if settings.PlayerESP then
+		for _, player in pairs(Players:GetPlayers()) do
+			if player ~= LocalPlayer and player.Character then
+				if not espObjects[player] or not espObjects[player].Parent then
+					createESP(player)
+				end
+			end
 		end
 	end
-	Highlights = {}
-end
+	
+	if settings.HighlightPlayers then
+		for _, player in pairs(Players:GetPlayers()) do
+			if player ~= LocalPlayer and player.Character then
+				if not highlightObjects[player] or not highlightObjects[player].Parent then
+					createHighlight(player)
+				end
+			end
+		end
+	end
+	
+	if settings.UnanchorHRP then
+		if LocalPlayer.Character then
+			local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+			local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+			if hrp and hrp.Anchored then
+				hrp.Anchored = false
+			end
+			if humanoid then
+				humanoid.WalkSpeed = 25
+			end
+		end
+	end
+	
+	if settings.AimDetection then
+		checkAimDetection()
+	end
+end)
 
--- Auto-update when players spawn
-game.Players.PlayerAdded:Connect(function(player)
+-- Reveal Players Loop
+task.spawn(function()
+	while true do
+		if settings.RevealPlayers then
+			revealPlayers()
+		end
+		task.wait(1) -- Check every second
+	end
+end)
+
+-- Handle player character changes
+Players.PlayerAdded:Connect(function(player)
 	player.CharacterAdded:Connect(function()
-		if ESPEnabled then
-			task.wait(0.5)
+		task.wait(0.5)
+		if settings.PlayerESP then
+			createESP(player)
+		end
+		if settings.HighlightPlayers then
 			createHighlight(player)
 		end
 	end)
 end)
 
--- Update existing players
-for _, player in pairs(game.Players:GetPlayers()) do
+-- Setup for existing players
+for _, player in pairs(Players:GetPlayers()) do
 	if player ~= LocalPlayer then
 		player.CharacterAdded:Connect(function()
-			if ESPEnabled then
-				task.wait(0.5)
+			task.wait(0.5)
+			if settings.PlayerESP then
+				createESP(player)
+			end
+			if settings.HighlightPlayers then
 				createHighlight(player)
 			end
 		end)
 	end
 end
 
--- UI Settings
-local MenuGroup = Tabs.Settings:AddLeftGroupbox("Menu")
+-- Expose API
+local Main = {}
 
-MenuGroup:AddToggle("KeybindMenuOpen", {
-	Default = Library.KeybindFrame.Visible,
-	Text = "Open Keybind Menu",
-	Callback = function(value)
-		Library.KeybindFrame.Visible = value
-	end,
-})
+function Main.SetAutoSkip(value)
+	settings.AutoSkipSpins = not not value
+	if Toggles.AutoSkipToggle then
+		Toggles.AutoSkipToggle:SetValue(value)
+	end
+end
 
-MenuGroup:AddToggle("ShowCustomCursor", {
-	Text = "Custom Cursor",
-	Default = true,
-	Callback = function(Value)
-		Library.ShowCustomCursor = Value
-	end,
-})
+function Main.SetAutoBuy(value)
+	settings.AutoBuySpin = not not value
+	if Toggles.AutoBuyToggle then
+		Toggles.AutoBuyToggle:SetValue(value)
+	end
+end
 
-MenuGroup:AddDropdown("NotificationSide", {
-	Values = { "Left", "Right" },
-	Default = "Right",
-	Text = "Notification Side",
-	Callback = function(Value)
-		Library:SetNotifySide(Value)
-	end,
-})
+function Main.GetSettings()
+	return {
+		AutoSkipSpins = settings.AutoSkipSpins,
+		AutoBuySpin = settings.AutoBuySpin,
+		SkipDelay = settings.SkipDelay,
+		BuyDelay = settings.BuyDelay,
+	}
+end
 
-MenuGroup:AddDivider()
-MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { 
-	Default = "RightShift", 
-	NoUI = true, 
-	Text = "Menu keybind" 
-})
+_G.HydraMain = Main
+_G.HydraSettings = settings
 
-MenuGroup:AddButton({
-	Text = "Unload Script",
-	Func = function()
-		Library:Unload()
-	end,
-	Tooltip = "Completely unload the script",
-})
+print("Hydra Blind Shot loaded! UI is ready.")
 
-MenuGroup:AddDivider()
-MenuGroup:AddLabel("Hydra Hub v1.0")
-MenuGroup:AddLabel("Hiders VS Seekers Script")
-
--- Hand the library over to our managers
-ThemeManager:SetLibrary(Library)
-SaveManager:SetLibrary(Library)
-
--- Ignore keys that are used by ThemeManager
-SaveManager:IgnoreThemeSettings()
-
--- Adds our MenuKeybind to the ignore list
-SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
-
--- Set folders
-ThemeManager:SetFolder("HidersVsSeekers")
-SaveManager:SetFolder("HidersVsSeekers/Configs")
-
--- Builds our config menu on the right side of our tab
-SaveManager:BuildConfigSection(Tabs.Settings)
-
--- Builds our theme menu (with plenty of built in themes) on the left side
-ThemeManager:ApplyToTab(Tabs.Settings)
-
--- Set the toggle keybind
-Library.ToggleKeybind = Options.MenuKeybind
-
--- Apply dark green theme on startup
-task.spawn(function()
-	task.wait(0.2)
-	Library:SetTheme({
-		Background = Color3.fromRGB(10, 20, 10),
-		MainFrame = Color3.fromRGB(15, 30, 15),
-		Accent = Color3.fromRGB(0, 180, 0),
-		Outline = Color3.fromRGB(0, 120, 0),
-		Inline = Color3.fromRGB(20, 40, 20),
-		Font = Color3.fromRGB(200, 255, 200),
-		FontOutline = Color3.fromRGB(0, 0, 0),
-	})
-end)
-
--- Startup
-Library:Notify({
-	Title = "Hydra Hub",
-	Description = "Script loaded! Press RightShift to toggle UI.",
-	Time = 4,
-})
