@@ -1,0 +1,388 @@
+-- Hatch A Brainrot Script with UI
+-- Load the Obsidian UI Library
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+local Options = Library.Options
+local Toggles = Library.Toggles
+
+-- Create the UI Window
+local Window = Library:CreateWindow({
+	Title = "Break a Lucky Block",
+	Footer = "Hydra Hub v1.0",
+	NotifySide = "Right",
+	ShowCustomCursor = true,
+})
+
+-- Create tabs
+local Tabs = {
+	Main = Window:AddTab("Main", "home"),
+	Player = Window:AddTab("Player", "user"),
+	Settings = Window:AddTab("Settings", "settings"),
+}
+
+-- Block Filter Detection (which rarities to alert on spawn)
+local BlockFilters = {
+	Common = false,
+	Rare = false,
+	Epic = false,
+	Legendary = false,
+	Mythic = true,
+	Secret = true,
+	God = true
+}
+
+-- Block Data
+local BlockData = {
+	["Basic Block"] = { RarityType = "Common", Color = Color3.fromRGB(141, 211, 0) },
+	["Rare Block"] = { RarityType = "Rare", Color = Color3.fromRGB(0, 170, 255) },
+	["Epic Block"] = { RarityType = "Epic", Color = Color3.fromRGB(170, 0, 255) },
+	["Legendary Block"] = { RarityType = "Legendary", Color = Color3.fromRGB(255, 30, 34) },
+	["Mythic Block"] = { RarityType = "Mythic", Color = Color3.fromRGB(255, 255, 255) },
+	["Secret Block"] = { RarityType = "Secret", Color = Color3.fromRGB(53, 53, 53) },
+	["Angel Block"] = { RarityType = "God", Color = Color3.fromRGB(255, 255, 0) },
+	["BLOCK GOD"] = { RarityType = "God", Color = Color3.fromRGB(255, 200, 50) },
+	["Gold Block"] = { RarityType = "Common", Color = Color3.fromRGB(255, 215, 0) },
+	["Diamond Block"] = { RarityType = "Rare", Color = Color3.fromRGB(160, 230, 255) },
+	["Lava Block"] = { RarityType = "Epic", Color = Color3.fromRGB(255, 136, 0) },
+	["Galaxy Block"] = { RarityType = "Legendary", Color = Color3.fromRGB(21, 0, 255) },
+	["Rainbow Block"] = { RarityType = "Mythic", Color = Color3.fromRGB(255, 255, 255) },
+	["Air Block"] = { RarityType = "Epic", Color = Color3.fromRGB(220, 245, 255) },
+	["Water Block"] = { RarityType = "Epic", Color = Color3.fromRGB(0, 80, 200) },
+	["Six Seven Block"] = { RarityType = "Epic", Color = Color3.fromRGB(0, 80, 200) },
+	["Tralalero Block"] = { RarityType = "Mythic", Color = Color3.fromRGB(0, 120, 255) },
+	["Pakrahmatmamat Block"] = { RarityType = "Mythic", Color = Color3.fromRGB(255, 183, 0) },
+	["Chicleteira Block"] = { RarityType = "Mythic", Color = Color3.fromRGB(255, 50, 50) }
+}
+
+-- Player Variables
+local WSLoop = false
+local TargetWalkSpeed = 16
+
+-- Kill Aura Variables
+local KillAuraEnabled = false
+local KillAuraRange = 500
+local DamageRemote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("DamageBlockEvent")
+local LuckyBlocksFolder = workspace:WaitForChild("LuckyBlocks")
+
+-- Block Alert Variables
+local BlockAlertEnabled = false
+local AlertedBlocks = {}
+local BlockAlerts = {
+	["Mythic Block"] = false,
+	["Secret Block"] = false,
+	["Angel Block"] = false,
+	["BLOCK GOD"] = false,
+	["Rainbow Block"] = false,
+	["Galaxy Block"] = false,
+	["Legendary Block"] = false
+}
+
+-- WalkSpeed Loop
+local function StartWSLoop()
+	task.spawn(function()
+		while WSLoop do
+			local player = game:GetService("Players").LocalPlayer
+			if player and player.Character then
+				local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+				if humanoid then
+					humanoid.WalkSpeed = TargetWalkSpeed
+				end
+			end
+			task.wait(0.1)
+		end
+	end)
+end
+
+-- Kill Aura Functions
+local function GetBlocksInRange()
+	local player = game:GetService("Players").LocalPlayer
+	if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+		return {}
+	end
+	
+	local playerPos = player.Character.HumanoidRootPart.Position
+	local blocksInRange = {}
+	
+	for _, block in ipairs(LuckyBlocksFolder:GetChildren()) do
+		if block:IsA("Model") and block.PrimaryPart then
+			local distance = (block.PrimaryPart.Position - playerPos).Magnitude
+			if distance <= KillAuraRange then
+				table.insert(blocksInRange, block)
+			end
+		end
+	end
+	
+	return blocksInRange
+end
+
+local function StartKillAura()
+	task.spawn(function()
+		while KillAuraEnabled do
+			local blocks = GetBlocksInRange()
+			
+			-- Hit all blocks in range (multi-hit built-in)
+			for _, block in ipairs(blocks) do
+				task.defer(function()
+					pcall(function()
+						DamageRemote:FireServer(block)
+					end)
+				end)
+			end
+			
+			task.wait(0.2) -- Wait before next cycle
+		end
+	end)
+end
+
+-- Block Detection System
+local function SetupBlockDetection()
+	if not LuckyBlocksFolder then return end
+	
+	LuckyBlocksFolder.ChildAdded:Connect(function(block)
+		if not block:IsA("Model") then return end
+		
+		-- Get block info
+		local blockInfo = BlockData[block.Name]
+		if not blockInfo then return end
+		
+		local rarityType = blockInfo.RarityType
+		
+		-- Check if this rarity should trigger detection
+		if BlockFilters[rarityType] and not AlertedBlocks[block] then
+			AlertedBlocks[block] = true
+			
+			Library:Notify({
+				Title = "🎯 " .. rarityType .. " Block Spawned!",
+				Description = block.Name .. " has spawned nearby!",
+				Time = 5,
+			})
+			
+			-- Play a sound notification
+			local sound = Instance.new("Sound")
+			sound.SoundId = "rbxassetid://6026984224"
+			sound.Volume = 0.5
+			sound.Parent = game:GetService("SoundService")
+			sound:Play()
+			sound.Ended:Connect(function()
+				sound:Destroy()
+			end)
+			
+			-- Clean up reference when block is removed
+			block.AncestryChanged:Connect(function()
+				if not block:IsDescendantOf(game) then
+					AlertedBlocks[block] = nil
+				end
+			end)
+		end
+	end)
+end
+
+-- Main Tab
+local MainBox = Tabs.Main:AddLeftGroupbox("Kill Aura")
+
+MainBox:AddToggle("KillAuraToggle", {
+	Text = "Enable Kill Aura",
+	Tooltip = "Automatically damage all blocks in range",
+	Default = false,
+	Callback = function(Value)
+		KillAuraEnabled = Value
+		if Value then
+			StartKillAura()
+			Library:Notify("Kill Aura enabled! (Multi-Hit)", 2)
+		else
+			Library:Notify("Kill Aura disabled!", 2)
+		end
+	end,
+})
+
+MainBox:AddSlider("KillAuraRange", {
+	Text = "Kill Aura Range",
+	Default = 500,
+	Min = 10,
+	Max = 500,
+	Rounding = 0,
+	Compact = false,
+	Callback = function(Value)
+		KillAuraRange = Value
+	end,
+})
+
+MainBox:AddDivider()
+
+-- Block Detection Filters
+local AlertBox = Tabs.Main:AddRightGroupbox("Block Detection")
+
+AlertBox:AddLabel("Get notified when blocks spawn:")
+
+AlertBox:AddToggle("DetectCommon", {
+	Text = "Common Blocks",
+	Default = false,
+	Callback = function(Value)
+		BlockFilters.Common = Value
+	end,
+})
+
+AlertBox:AddToggle("DetectRare", {
+	Text = "Rare Blocks",
+	Default = false,
+	Callback = function(Value)
+		BlockFilters.Rare = Value
+	end,
+})
+
+AlertBox:AddToggle("DetectEpic", {
+	Text = "Epic Blocks",
+	Default = false,
+	Callback = function(Value)
+		BlockFilters.Epic = Value
+	end,
+})
+
+AlertBox:AddToggle("DetectLegendary", {
+	Text = "Legendary Blocks",
+	Default = false,
+	Callback = function(Value)
+		BlockFilters.Legendary = Value
+	end,
+})
+
+AlertBox:AddToggle("DetectMythic", {
+	Text = "Mythic Blocks",
+	Default = true,
+	Callback = function(Value)
+		BlockFilters.Mythic = Value
+	end,
+})
+
+AlertBox:AddToggle("DetectSecret", {
+	Text = "Secret Blocks",
+	Default = true,
+	Callback = function(Value)
+		BlockFilters.Secret = Value
+	end,
+})
+
+AlertBox:AddToggle("DetectGod", {
+	Text = "God Blocks",
+	Default = true,
+	Callback = function(Value)
+		BlockFilters.God = Value
+	end,
+})
+
+-- Player Tab
+local PlayerBox = Tabs.Player:AddLeftGroupbox("Movement")
+
+PlayerBox:AddToggle("WSLoopToggle", {
+	Text = "WalkSpeed Loop",
+	Tooltip = "Continuously set your walkspeed",
+	Default = false,
+	Callback = function(Value)
+		WSLoop = Value
+		if Value then
+			StartWSLoop()
+			Library:Notify("WalkSpeed loop enabled!", 2)
+		else
+			Library:Notify("WalkSpeed loop disabled!", 2)
+		end
+	end,
+})
+
+PlayerBox:AddSlider("WalkSpeedSlider", {
+	Text = "WalkSpeed",
+	Default = 16,
+	Min = 16,
+	Max = 35,
+	Rounding = 0,
+	Compact = false,
+	Callback = function(Value)
+		TargetWalkSpeed = Value
+	end,
+})
+
+-- Settings Tab
+local MenuGroup = Tabs.Settings:AddLeftGroupbox("Menu")
+
+MenuGroup:AddToggle("KeybindMenuOpen", {
+	Default = false,
+	Text = "Open Keybind Menu",
+	Callback = function(Value)
+		Library.KeybindFrame.Visible = Value
+	end,
+})
+
+MenuGroup:AddToggle("ShowCustomCursor", {
+	Text = "Custom Cursor",
+	Default = true,
+	Callback = function(Value)
+		Library.ShowCustomCursor = Value
+	end,
+})
+
+MenuGroup:AddDropdown("NotificationSide", {
+	Values = { "Left", "Right" },
+	Default = 2,
+	Text = "Notification Side",
+	Callback = function(Value)
+		Library:SetNotifySide(Value)
+	end,
+})
+
+MenuGroup:AddDivider()
+MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", {
+	Default = "RightShift",
+	NoUI = true,
+	Text = "Menu keybind",
+})
+
+MenuGroup:AddButton({
+	Text = "Unload Script",
+	Func = function()
+		Library:Unload()
+	end,
+	Tooltip = "Completely unload the script",
+})
+
+MenuGroup:AddDivider()
+MenuGroup:AddLabel("Hatch A Brainrot v1.0")
+MenuGroup:AddLabel("Kill Aura & Detection Script")
+
+-- Build theme and config sections
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+
+ThemeManager:SetFolder("HatchABrainrotThemes")
+SaveManager:SetFolder("HatchABrainrot/configs")
+
+SaveManager:BuildConfigSection(Tabs.Settings)
+ThemeManager:ApplyToTab(Tabs.Settings)
+
+-- Set the menu keybind
+Library.ToggleKeybind = Options.MenuKeybind
+
+-- Load autoload config
+SaveManager:LoadAutoloadConfig()
+
+-- Initialize block detection
+SetupBlockDetection()
+
+-- Unload function
+Library:OnUnload(function()
+	-- Cleanup
+	WSLoop = false
+	KillAuraEnabled = false
+	BlockAlertEnabled = false
+	print("Hatch A Brainrot script unloaded!")
+end)
+
+-- Notify when script loads
+Library:Notify("Hatch A Brainrot script loaded successfully!", 5)
+
+-- Make the library table accessible globally
+getgenv().HydraWeatherUI = Library
