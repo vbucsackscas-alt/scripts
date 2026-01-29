@@ -5907,14 +5907,8 @@ MenuGroup:AddLabel("Menu Keybind"):AddKeyPicker("MenuKeybind", {
 })
 
 -- Credits
-UICredits:AddLabel("HYDRA UNIVERSAL V3")
-UICredits:AddLabel("Universal Edition")
-UICredits:AddDivider()
-UICredits:AddLabel("Features:")
-UICredits:AddLabel("- Advanced Aimbot")
-UICredits:AddLabel("- Comprehensive ESP")
-UICredits:AddLabel("- Movement Mods")
-UICredits:AddLabel("- Universal Features")
+UICredits:AddLabel("HYDRA UNIVERSAL")
+UICredits:AddLabel("By Xeno")
 UICredits:AddDivider()
 UICredits:AddLabel("Made with Obsidian UI")
 
@@ -5939,7 +5933,7 @@ SaveManager:LoadAutoloadConfig()
 
 print("Hydra Universal V3.0 Loaded Successfully!")
 print(string.format("Loaded in %.2fs", tick() - loadStart))
-Library:Notify("Hydra Universal V3", "Loaded successfully! Press INSERT to toggle UI", 5)
+Library:Notify("Hydra Universal", "Loaded successfully! Press INSERT to toggle UI", 5)
 
 -- END OF SCRIPT
 
