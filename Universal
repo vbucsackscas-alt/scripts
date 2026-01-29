@@ -1,0 +1,5945 @@
+-- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║                    HYDRA UNIVERSAL V3.0 - COMBAT EDITION                 ║
+-- ║              Premium Aimbot & ESP | Highly Configurable                  ║
+-- ║                        5000+ Lines of Excellence                         ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
+
+local loadStart = tick()
+print("Hydra Universal V3.0 Loading...")
+
+--[[
+    ═══════════════════════════════════════════════════════════════════════════
+    TABLE OF CONTENTS:
+    
+    1. Core Services & Initialization .......... Lines 20-150
+    2. Configuration System .................... Lines 151-600
+    3. Utility Functions ....................... Lines 601-900
+    4. Advanced Aimbot System .................. Lines 901-1800
+    5. Advanced ESP System ..................... Lines 1801-2700
+    6. Visual Enhancements ..................... Lines 2701-3200
+    7. Movement & Player Mods .................. Lines 3201-3700
+    8. Combat Features ......................... Lines 3701-4200
+    9. Miscellaneous Utilities ................. Lines 4201-4700
+    10. UI System (Full Integration) ........... Lines 4701-5200+
+    ═══════════════════════════════════════════════════════════════════════════
+]]
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SECTION 1: CORE SERVICES & INITIALIZATION
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Service Cache for Performance
+local Services = setmetatable({}, {
+    __index = function(self, serviceName)
+        local service = game:GetService(serviceName)
+        rawset(self, serviceName, service)
+        return service
+    end
+})
+
+-- Core Player References
+local Players = Services.Players
+local RunService = Services.RunService
+local UserInputService = Services.UserInputService
+local TweenService = Services.TweenService
+local Lighting = Services.Lighting
+local Workspace = workspace
+
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local Camera = Workspace.CurrentCamera
+
+-- Dynamic Character References
+local function GetCharacter()
+    return LocalPlayer.Character
+end
+
+local function GetRootPart()
+    local char = GetCharacter()
+    return char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso"))
+end
+
+local function GetHumanoid()
+    local char = GetCharacter()
+    return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+local function GetHead()
+    local char = GetCharacter()
+    return char and char:FindFirstChild("Head")
+end
+
+-- Connection & Object Management
+local Connections = {}
+local ESPObjects = {}
+local DrawingObjects = {}
+local ChamObjects = {}
+local HighlightObjects = {}
+
+-- Cleanup Function
+local function Cleanup()
+    for _, connection in pairs(Connections) do
+        if connection and connection.Disconnect then
+            connection:Disconnect()
+        end
+    end
+    
+    for _, drawing in pairs(DrawingObjects) do
+        if drawing and drawing.Remove then
+            drawing:Remove()
+        end
+    end
+    
+    for _, obj in pairs(ESPObjects) do
+        if obj.Drawings then
+            for _, drawing in pairs(obj.Drawings) do
+                if type(drawing) == "table" then
+                    for _, subDrawing in pairs(drawing) do
+                        if subDrawing.Remove then subDrawing:Remove() end
+                    end
+                else
+                    if drawing.Remove then drawing:Remove() end
+                end
+            end
+        end
+    end
+    
+    for _, cham in pairs(ChamObjects) do
+        if cham and cham.Destroy then
+            cham:Destroy()
+        end
+    end
+    
+    for _, highlight in pairs(HighlightObjects) do
+        if highlight and highlight.Destroy then
+            highlight:Destroy()
+        end
+    end
+    
+    print("Hydra Universal Cleaned Up")
+end
+
+-- Reload Character References on Respawn
+LocalPlayer.CharacterAdded:Connect(function(newCharacter)
+    task.wait(0.5)
+    print("🔄 Character reloaded")
+end)
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SECTION 2: CONFIGURATION SYSTEM (Lines 151-600)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local Settings = {
+    --[[ ══════════════ AIMBOT CONFIGURATION ══════════════ ]]
+    Aimbot = {
+        -- Core Settings
+        Enabled = false,
+        TeamCheck = true,
+        VisibleCheck = true,
+        AliveCheck = true,
+        
+        -- Targeting
+        TargetPart = "Head", -- Options: Head, UpperTorso, LowerTorso, HumanoidRootPart, Random, Closest
+        PrioritizeClosest = true,
+        IgnoreFriends = true,
+        IgnoreTeammates = true,
+        MaxDistance = 2000,
+        
+        -- FOV Circle
+        UseFOV = true,
+        FOVRadius = 120,
+        FOVVisible = true,
+        FOVFilled = false,
+        FOVColor = Color3.fromRGB(255, 255, 255),
+        FOVTransparency = 1,
+        FOVThickness = 2,
+        FOVSides = 64,
+        FOVRainbow = false,
+        
+        -- Aim Method
+        AimMethod = "Camera", -- Options: Camera, Mouse, CameraLock, Silent
+        AimKey = "MouseButton2", -- Options: MouseButton2, MouseButton1, Q, E, C, LeftShift, etc.
+        ToggleMode = false,
+        HoldMode = true,
+        StickyAim = false,
+        StickyDuration = 2,
+        
+        -- Smoothing
+        UseSmoothing = true,
+        Smoothness = 0.1, -- Lower = Faster (0.01 = instant, 1 = very slow)
+        SmoothnessX = 0.1,
+        SmoothnessY = 0.1,
+        DynamicSmoothing = true, -- Adjusts based on distance
+        SmoothingCurve = "Linear", -- Options: Linear, Sine, Quad, Cubic
+        
+        -- Prediction
+        UsePrediction = true,
+        Prediction = 0.133, -- Default prediction amount
+        PredictionX = 0.133,
+        PredictionY = 0.133,
+        PredictionZ = 0.133,
+        AutoPrediction = true, -- Auto-adjusts based on ping
+        VelocityTracking = true,
+        AccelerationCompensation = false,
+        
+        -- Advanced Features
+        AirShotCompensation = true,
+        JumpPrediction = 2.5,
+        GravityCompensation = false,
+        Resolver = false,
+        ResolverMethod = "Delta", -- Options: Delta, Advanced, LBY, Velocity
+        ShakeAmount = 0,
+        ShakeEnabled = false,
+        
+        -- Hit Chance & Parts
+        HitChance = 100,
+        RandomHitChance = false,
+        TargetBones = {
+            Head = true,
+            UpperTorso = true,
+            LowerTorso = true,
+            HumanoidRootPart = false,
+            LeftUpperArm = false,
+            RightUpperArm = false,
+            LeftUpperLeg = false,
+            RightUpperLeg = false,
+        },
+        ClosestBone = false,
+        
+        -- Trigger Bot (Advanced)
+        TriggerBot = false,
+        TriggerDelay = 0.05,
+        TriggerKey = "MouseButton1",
+        BurstMode = false,
+        BurstCount = 3,
+        BurstDelay = 0.1,
+        TriggerOnlyOnTarget = true,
+        TriggerHitChance = 100,
+        TriggerHeadshotPriority = false,
+        TriggerMaxDistance = 500,
+        TriggerRequireVisible = true,
+        TriggerHoldTime = 0.02,
+        TriggerCooldown = 0.08,
+        
+        -- Auto Shoot
+        AutoShoot = false,
+        AutoShootDelay = 0.1,
+        OnlyWhenAiming = true,
+        
+        -- Silent Aim
+        SilentAim = false,
+        SilentAimChance = 100,
+        SilentAimPart = "Head",
+        SilentAimFOV = 90,
+        
+        -- Notifications & Visuals
+        ShowNotifications = true,
+        TargetESP = true,
+        TargetTracers = true,
+        TracerColor = Color3.fromRGB(255, 0, 0),
+        TracerThickness = 2,
+        ShowFOVOnAim = false,
+        
+        -- Whitelist/Blacklist
+        Whitelist = {},
+        Blacklist = {},
+        WhitelistMode = false,
+        
+        -- Anti-Detection
+        Humanize = false,
+        HumanizeAmount = 0.05,
+        RandomOffset = false,
+        OffsetAmount = 1,
+        MissChance = 0,
+    },
+    
+    --[[ ══════════════ ESP CONFIGURATION ══════════════ ]]
+    ESP = {
+        -- Core Settings
+        Enabled = false,
+        Teamcheck = false,
+        ShowTeammates = true,
+        ShowSelf = false,
+        MaxDistance = 2500,
+        UpdateDelay = 0.05,
+        
+        -- Player Filtering
+        PlayersOnly = false,
+        ShowNPCs = true,
+        IgnoreBots = false,
+        AliveOnly = true,
+        
+        -- Box ESP
+        Boxes = true,
+        BoxType = "2D", -- Options: 2D, 2D Corner, 3D
+        BoxColor = Color3.fromRGB(255, 255, 255),
+        BoxThickness = 2,
+        BoxTransparency = 1,
+        BoxFilled = false,
+        FilledTransparency = 0.1,
+        BoxRainbow = false,
+        TeamColoredBoxes = true,
+        DynamicColor = false,
+        
+        -- Tracers
+        Tracers = true,
+        TracerOrigin = "Bottom", -- Options: Bottom, Center, Top, Mouse
+        TracerColor = Color3.fromRGB(255, 255, 255),
+        TracerThickness = 1,
+        TracerTransparency = 1,
+        TracerRainbow = false,
+        TeamColoredTracers = true,
+        
+        -- Name ESP
+        Names = true,
+        DisplayNames = true,
+        NameFont = 2, -- 0=Legacy, 1=Arial, 2=ArialBold, 3=SourceSans, 4=SourceSansBold
+        NameSize = 16,
+        NameColor = Color3.fromRGB(255, 255, 255),
+        NameOutline = true,
+        OutlineColor = Color3.fromRGB(0, 0, 0),
+        ShowUsername = false,
+        
+        -- Distance ESP
+        Distance = true,
+        DistanceFont = 2,
+        DistanceSize = 14,
+        DistanceColor = Color3.fromRGB(255, 255, 255),
+        DistanceOutline = true,
+        ShowMeters = true,
+        
+        -- Health Bar
+        HealthBar = true,
+        HealthBarSide = "Left", -- Options: Left, Right, Top, Bottom
+        HealthBarSize = 4,
+        HealthBarOutline = true,
+        HealthText = true,
+        HealthTextSize = 12,
+        HealthPercentage = false,
+        ColorCodedHealth = true,
+        
+        -- Weapon/Tool ESP
+        ShowWeapon = true,
+        WeaponFont = 2,
+        WeaponSize = 14,
+        WeaponColor = Color3.fromRGB(255, 255, 255),
+        WeaponOutline = true,
+        
+        -- Skeleton ESP
+        Skeleton = false,
+        SkeletonColor = Color3.fromRGB(255, 255, 255),
+        SkeletonThickness = 1,
+        SkeletonTransparency = 1,
+        SkeletonRainbow = false,
+        
+        -- Chams
+        Chams = false,
+        ChamsColor = Color3.fromRGB(255, 0, 255),
+        ChamsTransparency = 0.5,
+        ChamsMaterial = "ForceField", -- Options: ForceField, Neon, Glass
+        ChamsOutline = true,
+        
+        -- Highlight
+        Highlight = false,
+        HighlightFillColor = Color3.fromRGB(255, 0, 0),
+        HighlightOutlineColor = Color3.fromRGB(255, 255, 255),
+        HighlightFillTransparency = 0.5,
+        HighlightOutlineTransparency = 0,
+        HighlightRainbow = false,
+        
+        -- Out of View Arrows
+        OOVArrows = false,
+        ArrowSize = 20,
+        ArrowRadius = 150,
+        ArrowColor = Color3.fromRGB(255, 255, 255),
+        ArrowTransparency = 1,
+        
+        -- Flags
+        Flags = true,
+        FlagFont = 2,
+        FlagSize = 12,
+        FlagColor = Color3.fromRGB(255, 255, 255),
+        ShowArmor = false,
+        ShowKills = false,
+        ShowDeaths = false,
+        ShowRank = false,
+        ShowPing = false,
+        
+        -- Glow/Effects
+        Glow = false,
+        GlowColor = Color3.fromRGB(0, 255, 255),
+        GlowTransparency = 0.5,
+        
+        -- Performance
+        DynamicESP = true,
+        AdaptiveQuality = true,
+        ReduceLag = false,
+        
+        -- Colors
+        EnemyColor = Color3.fromRGB(255, 0, 0),
+        TeamColor = Color3.fromRGB(0, 255, 0),
+        FriendColor = Color3.fromRGB(0, 255, 255),
+        NPCColor = Color3.fromRGB(255, 255, 0),
+    },
+    
+    --[[ ══════════════ VISUAL ENHANCEMENTS ══════════════ ]]
+    Visuals = {
+        -- World Visuals
+        Fullbright = false,
+        FullbrightAmount = 1,
+        NoFog = false,
+        CustomAmbient = false,
+        AmbientColor = Color3.fromRGB(255, 255, 255),
+        TimeChanger = false,
+        CustomTime = 14,
+        SkyboxChanger = false,
+        RemoveSkybox = false,
+        
+        -- Crosshair
+        Crosshair = false,
+        CrosshairSize = 10,
+        CrosshairGap = 5,
+        CrosshairThickness = 2,
+        CrosshairColor = Color3.fromRGB(0, 255, 0),
+        CrosshairTransparency = 1,
+        CrosshairDot = true,
+        CrosshairDotSize = 2,
+        CrosshairOutline = true,
+        CrosshairRainbow = false,
+        DynamicCrosshair = false,
+        
+        -- Hit Markers
+        HitMarkers = false,
+        HitMarkerDuration = 0.5,
+        HitMarkerSize = 15,
+        HitMarkerColor = Color3.fromRGB(255, 255, 255),
+        HitMarkerThickness = 2,
+        HitSound = false,
+        HitSoundID = "rbxassetid://6089403433",
+        HitSoundVolume = 0.5,
+        
+        -- Damage Indicators
+        DamageIndicators = false,
+        DamageFont = 3,
+        DamageSize = 24,
+        DamageColor = Color3.fromRGB(255, 0, 0),
+        DamageDuration = 1.5,
+        DamageRise = true,
+        DamageRiseSpeed = 50,
+        CriticalColor = Color3.fromRGB(255, 255, 0),
+        
+        -- Bullet Tracers
+        BulletTracers = false,
+        BulletColor = Color3.fromRGB(255, 255, 0),
+        BulletDuration = 2,
+        BulletWidth = 0.1,
+        BulletFade = true,
+        
+        -- Impact Effects
+        ImpactMarkers = false,
+        ImpactSize = 0.5,
+        ImpactColor = Color3.fromRGB(255, 0, 0),
+        ImpactDuration = 3,
+        ImpactGlow = false,
+        
+        -- Camera Modifications
+        FOVChanger = false,
+        FOVAmount = 90,
+        FOVSmooth = true,
+        ThirdPerson = false,
+        ThirdPersonDistance = 15,
+        ThirdPersonKey = "P",
+        NoHeadBob = false,
+        NoCameraShake = false,
+        
+        -- Viewmodel
+        ViewmodelChanger = false,
+        ViewmodelX = 0,
+        ViewmodelY = 0,
+        ViewmodelZ = 0,
+        ViewmodelRoll = 0,
+        
+        -- Rainbow Mode
+        RainbowMode = false,
+        RainbowSpeed = 1,
+        RainbowSaturation = 1,
+        RainbowBrightness = 1,
+        
+        -- Environment
+        RemoveTextures = false,
+        Wireframe = false,
+        ForceField = false,
+        ForceFieldColor = Color3.fromRGB(0, 255, 255),
+        ForceFieldTransparency = 0.5,
+        
+        -- Performance
+        DisableParticles = false,
+        DisableShadows = false,
+        LowGraphics = false,
+        BoostFPS = false,
+        TargetFPS = 60,
+    },
+    
+    --[[ ══════════════ MOVEMENT & PLAYER MODS ══════════════ ]]
+    Movement = {
+        -- Speed Modifications
+        SpeedEnabled = false,
+        WalkSpeed = 16,
+        SpeedMethod = "Humanoid", -- Options: Humanoid, CFrame, Velocity, BodyVelocity
+        SpeedMultiplier = 1.5,
+        
+        -- Jump Modifications
+        JumpEnabled = false,
+        JumpPower = 50,
+        InfiniteJump = false,
+        AutoJump = false,
+        BunnyHop = false,
+        BunnyHopSpeed = 1.2,
+        
+        -- Flight
+        Flight = false,
+        FlightSpeed = 50,
+        FlightKey = "X",
+        FlightUpKey = "Space",
+        FlightDownKey = "LeftShift",
+        FlightMethod = "BodyVelocity", -- Options: BodyVelocity, CFrame, Tween
+        
+        -- Noclip
+        Noclip = false,
+        NoclipBind = "N",
+        PartialNoclip = false,
+        
+        -- Advanced Movement
+        LongJump = false,
+        LongJumpPower = 100,
+        LongJumpKey = "Z",
+        WallClimb = false,
+        WaterWalk = false,
+        NoFallDamage = false,
+        SpeedBypass = false,
+        
+        -- Gravity
+        GravityEnabled = false,
+        GravityAmount = 196.2,
+        LowGravity = false,
+        ZeroGravity = false,
+        
+        -- Platform
+        Platform = false,
+        PlatformKey = "P",
+        PlatformSize = 10,
+        PlatformTransparency = 0.5,
+        PlatformColor = Color3.fromRGB(0, 255, 0),
+        
+        -- Swimming
+        InfiniteSwim = false,
+        SwimSpeed = 50,
+        NoSlowdown = false,
+    },
+    
+    --[[ ══════════════ COMBAT FEATURES ══════════════ ]]
+    Combat = {
+        -- Kill Aura
+        KillAura = false,
+        KillAuraRange = 15,
+        KillAuraDelay = 0.1,
+        KillAuraTeamCheck = true,
+        KillAuraVisuals = false,
+        
+        -- Reach Extension
+        Reach = false,
+        ReachAmount = 5,
+        ReachVisualization = false,
+        ReachColor = Color3.fromRGB(255, 0, 0),
+        
+        -- Hitbox Expander
+        HitboxExpander = false,
+        HitboxSize = 10,
+        HitboxTransparency = 0.5,
+        ShowHitboxes = false,
+        HitboxPart = "HumanoidRootPart", -- Options: Head, HumanoidRootPart, Torso
+        HitboxColor = Color3.fromRGB(255, 0, 0),
+        
+        -- Auto Parry/Block
+        AutoParry = false,
+        ParryPrediction = 0.15,
+        ParryKey = "F",
+        AutoBlock = false,
+        BlockKey = "V",
+        
+        -- Weapon Modifications
+        NoRecoil = false,
+        NoSpread = false,
+        InfiniteAmmo = false,
+        RapidFire = false,
+        FireRate = 0.05,
+        AutoReload = false,
+        FastReload = false,
+        
+        -- Attack Mods
+        FastAttack = false,
+        AttackSpeed = 0.1,
+        AutoAttack = false,
+        AutoClicker = false,
+        ClicksPerSecond = 20,
+        
+        -- Critical Hits
+        CriticalHits = false,
+        CritChance = 100,
+        CritMultiplier = 2,
+        
+        -- Angles
+        Spinbot = false,
+        SpinSpeed = 10,
+        SpinAxis = "Y", -- Options: X, Y, Z, All
+        AntiAim = false,
+        AntiAimPitch = 90,
+        AntiAimYaw = 180,
+        Jitter = false,
+        JitterSpeed = 50,
+        
+        -- Protection
+        GodMode = false,
+        AntiRagdoll = false,
+        AntiKnockback = false,
+        AntiSlow = false,
+        AntiStun = false,
+        AntiVoid = false,
+        VoidHeight = 0,
+        VoidTeleportTo = "Spawn",
+        
+        -- Other
+        OneShotKill = false,
+        NoAttackCooldown = false,
+        MeleeReach = false,
+        MeleeReachAmount = 10,
+    },
+    
+    --[[ ══════════════ MISC UTILITIES ══════════════ ]]
+    Misc = {
+        -- Anti-AFK
+        AntiAFK = true,
+        AntiAFKMethod = "Jump", -- Options: Jump, Random, Walk, MouseMove
+        
+        -- Teleportation
+        ClickTP = false,
+        ClickTPKey = "LeftControl",
+        TweenTP = true,
+        TweenSpeed = 1,
+        TPBypass = false,
+        
+        -- Server
+        ServerHop = false,
+        RejoinOnKick = false,
+        AutoRejoin = false,
+        ServerRegion = "Auto",
+        LowPingServers = false,
+        
+        -- Chat
+        ChatBypass = false,
+        ChatSpam = false,
+        SpamMessage = "Hydra Universal",
+        SpamDelay = 2,
+        CustomChat = false,
+        ChatPrefix = "[HYDRA]",
+        
+        -- Information Display
+        ShowFPS = true,
+        FPSPosition = "TopRight",
+        ShowPing = true,
+        PingPosition = "TopRight",
+        ShowCoordinates = false,
+        ShowPlayerCount = true,
+        ShowServerTime = false,
+        ShowVelocity = false,
+        
+        -- Name Spoof
+        FakeName = false,
+        CustomName = "Hydra User",
+        HideName = false,
+        NameColor = Color3.fromRGB(255, 0, 0),
+        
+        -- Camera
+        Freecam = false,
+        FreecamSpeed = 1,
+        FreecamKey = "C",
+        ViewPlayers = false,
+        ViewKey = "V",
+        
+        -- Respawn
+        AutoRespawn = false,
+        InstantRespawn = false,
+        RespawnDelay = 0,
+        
+        -- Spectate
+        SpectatePlayer = false,
+        SpectateCycle = false,
+        SpectateKey = "B",
+        
+        -- Performance
+        OptimizePerformance = false,
+        ReduceGC = false,
+        NetworkOptimization = false,
+        FPSUnlocker = false,
+        FPSCap = 0,
+        
+        -- Other
+        StreamerMode = false,
+        HideGUI = false,
+        PanicKey = "End",
+        UnloadKey = "Delete",
+    },
+}
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SECTION 3: UTILITY FUNCTIONS (Lines 601-900)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local Utils = {}
+
+-- Performance Optimizations
+local floor = math.floor
+local abs = math.abs
+local sqrt = math.sqrt
+local atan2 = math.atan2
+local rad = math.rad
+local deg = math.deg
+local sin = math.sin
+local cos = math.cos
+local min = math.min
+local max = math.max
+local huge = math.huge
+local random = math.random
+local clamp = math.clamp or function(n, low, high) return math.min(math.max(n, low), high) end
+local lerp = function(a, b, t) return a + (b - a) * t end
+
+-- -------------------------------------------------------------------------------
+-- SMOOTH INTERPOLATION SYSTEM - Ultra Smooth ESP/Tracers
+-- -------------------------------------------------------------------------------
+
+local SmoothCache = {
+    Positions = {}, -- Cache for position interpolation
+    LastUpdate = tick(),
+    SmoothFactor = 0.25, -- Lower = smoother (0.1-0.5 recommended)
+    Enabled = true,
+}
+
+-- Smooth Vector2 Lerping with Velocity Prediction
+function Utils.SmoothVector2(cacheKey, targetPos, smoothFactor)
+    -- Safety check for nil/invalid input
+    if not targetPos or typeof(targetPos) ~= "Vector2" then
+        return targetPos or Vector2.new(0, 0)
+    end
+    
+    if not SmoothCache.Enabled then return targetPos end
+    
+    smoothFactor = smoothFactor or SmoothCache.SmoothFactor
+    
+    local cached = SmoothCache.Positions[cacheKey]
+    if not cached then
+        SmoothCache.Positions[cacheKey] = {
+            Current = targetPos,
+            Velocity = Vector2.new(0, 0),
+            LastTarget = targetPos,
+        }
+        return targetPos
+    end
+    
+    -- Calculate velocity for prediction
+    local dt = tick() - SmoothCache.LastUpdate
+    if dt > 0 and dt < 1 then -- Prevent huge jumps from long pauses
+        cached.Velocity = (targetPos - cached.LastTarget) / dt
+    end
+    cached.LastTarget = targetPos
+    
+    -- Smooth lerp with velocity dampening
+    local velocityInfluence = 0.3
+    local predictedTarget = targetPos + cached.Velocity * dt * velocityInfluence
+    
+    -- Exponential smoothing for ultra-smooth movement
+    local smoothed = Vector2.new(
+        lerp(cached.Current.X, predictedTarget.X, smoothFactor),
+        lerp(cached.Current.Y, predictedTarget.Y, smoothFactor)
+    )
+    
+    cached.Current = smoothed
+    return smoothed
+end
+
+-- Smooth Number Lerping
+function Utils.SmoothNumber(cacheKey, targetValue, smoothFactor)
+    -- Safety check for nil/invalid input
+    if not targetValue or type(targetValue) ~= "number" then
+        return targetValue or 0
+    end
+    
+    if not SmoothCache.Enabled then return targetValue end
+    
+    smoothFactor = smoothFactor or SmoothCache.SmoothFactor
+    
+    local cached = SmoothCache.Positions[cacheKey]
+    if not cached then
+        SmoothCache.Positions[cacheKey] = {
+            Current = targetValue,
+            LastTarget = targetValue,
+        }
+        return targetValue
+    end
+    
+    cached.LastTarget = targetValue
+    cached.Current = lerp(cached.Current, targetValue, smoothFactor)
+    return cached.Current
+end
+
+-- Smooth Color Lerping (for rainbow effects)
+function Utils.SmoothColor(cacheKey, targetColor, smoothFactor)
+    if not SmoothCache.Enabled then return targetColor end
+    
+    smoothFactor = smoothFactor or SmoothCache.SmoothFactor * 2 -- Colors need faster response
+    
+    local cached = SmoothCache.Positions[cacheKey]
+    if not cached then
+        SmoothCache.Positions[cacheKey] = {
+            Current = targetColor,
+        }
+        return targetColor
+    end
+    
+    local smoothed = Color3.new(
+        lerp(cached.Current.R, targetColor.R, smoothFactor),
+        lerp(cached.Current.G, targetColor.G, smoothFactor),
+        lerp(cached.Current.B, targetColor.B, smoothFactor)
+    )
+    
+    cached.Current = smoothed
+    return smoothed
+end
+
+-- Clear cache for specific player (on death/remove)
+function Utils.ClearSmoothCache(playerKey)
+    for key, _ in pairs(SmoothCache.Positions) do
+        if string.find(key, playerKey) then
+            SmoothCache.Positions[key] = nil
+        end
+    end
+end
+
+-- Update smooth cache timestamp
+function Utils.UpdateSmoothTick()
+    SmoothCache.LastUpdate = tick()
+end
+
+-- Set global smooth factor
+function Utils.SetSmoothFactor(factor)
+    SmoothCache.SmoothFactor = clamp(factor, 0.05, 1)
+end
+
+-- Player Utility Functions
+function Utils.GetAllPlayers()
+    return Players:GetPlayers()
+end
+
+function Utils.IsPlayerAlive(player)
+    if not player then return false end
+    local character = player.Character
+    if not character then return false end
+    
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")
+    
+    return humanoid and rootPart and humanoid.Health > 0
+end
+
+function Utils.GetPlayerFromCharacter(character)
+    for _, player in pairs(Utils.GetAllPlayers()) do
+        if player.Character == character then
+            return player
+        end
+    end
+    return nil
+end
+
+function Utils.IsTeammate(player)
+    if not Settings.Aimbot.TeamCheck and not Settings.ESP.Teamcheck then
+        return false
+    end
+    return player.Team == LocalPlayer.Team
+end
+
+function Utils.IsFriend(player)
+    return LocalPlayer:IsFriendsWith(player.UserId)
+end
+
+-- Distance Calculations
+function Utils.GetDistance(pos1, pos2)
+    if typeof(pos1) == "Instance" then
+        pos1 = pos1.Position
+    end
+    if typeof(pos2) == "Instance" then
+        pos2 = pos2.Position
+    end
+    return (pos1 - pos2).Magnitude
+end
+
+function Utils.GetDistance2D(pos1, pos2)
+    local dx = pos1.X - pos2.X
+    local dz = pos1.Z - pos2.Z
+    return sqrt(dx * dx + dz * dz)
+end
+
+-- Visibility Check
+function Utils.IsVisible(targetPart, origin)
+    if not targetPart then return false end
+    origin = origin or Camera.CFrame.Position
+    
+    local direction = (targetPart.Position - origin).Unit * 2000
+    
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    raycastParams.FilterDescendantsInstances = {GetCharacter(), Camera}
+    raycastParams.IgnoreWater = true
+    
+    local result = Workspace:Raycast(origin, direction, raycastParams)
+    
+    if not result then return true end
+    
+    return result.Instance:IsDescendantOf(targetPart.Parent)
+end
+
+-- Wall Check (Alternative method)
+function Utils.WallCheck(targetPart)
+    if not targetPart then return false end
+    
+    local rootPart = GetRootPart()
+    if not rootPart then return false end
+    
+    local ray = Ray.new(rootPart.Position, (targetPart.Position - rootPart.Position))
+    local hit, position = Workspace:FindPartOnRayWithIgnoreList(ray, {GetCharacter(), targetPart.Parent})
+    
+    return hit == nil or hit:IsDescendantOf(targetPart.Parent)
+end
+
+-- Screen Utilities
+function Utils.WorldToScreen(position)
+    local screenPoint, onScreen = Camera:WorldToViewportPoint(position)
+    return Vector2.new(screenPoint.X, screenPoint.Y), onScreen, screenPoint.Z
+end
+
+function Utils.WorldToScreenPoint(position)
+    return Camera:WorldToViewportPoint(position)
+end
+
+-- Get Closest Player to Crosshair
+function Utils.GetClosestPlayerToCursor(maxFOV)
+    local closestPlayer = nil
+    local shortestDistance = maxFOV or huge
+    local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+    
+    for _, player in pairs(Utils.GetAllPlayers()) do
+        if player == LocalPlayer then continue end
+        if not Utils.IsPlayerAlive(player) then continue end
+        if Settings.Aimbot.TeamCheck and Utils.IsTeammate(player) then continue end
+        
+        local character = player.Character
+        local targetPart = character:FindFirstChild(Settings.Aimbot.TargetPart) or character:FindFirstChild("HumanoidRootPart")
+        
+        if targetPart then
+            if Settings.Aimbot.VisibleCheck and not Utils.IsVisible(targetPart) then continue end
+            
+            local screenPos, onScreen, depth = Utils.WorldToScreen(targetPart.Position)
+            
+            if onScreen and depth > 0 then
+                local distance = (mousePos - screenPos).Magnitude
+                
+                if distance < shortestDistance then
+                    closestPlayer = player
+                    shortestDistance = distance
+                end
+            end
+        end
+    end
+    
+    return closestPlayer
+end
+
+-- Get Closest Player to Local Player
+function Utils.GetClosestPlayer(maxDistance)
+    local closestPlayer = nil
+    local shortestDistance = maxDistance or huge
+    local rootPart = GetRootPart()
+    
+    if not rootPart then return nil end
+    
+    for _, player in pairs(Utils.GetAllPlayers()) do
+        if player == LocalPlayer then continue end
+        if not Utils.IsPlayerAlive(player) then continue end
+        if Settings.Aimbot.TeamCheck and Utils.IsTeammate(player) then continue end
+        
+        local character = player.Character
+        local targetRoot = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")
+        
+        if targetRoot then
+            local distance = Utils.GetDistance(rootPart.Position, targetRoot.Position)
+            
+            if distance < shortestDistance then
+                if Settings.Aimbot.VisibleCheck and not Utils.IsVisible(targetRoot) then continue end
+                
+                closestPlayer = player
+                shortestDistance = distance
+            end
+        end
+    end
+    
+    return closestPlayer
+end
+
+-- Prediction Functions
+function Utils.PredictPosition(part, predictionTime)
+    if not part then return Vector3.new() end
+    
+    local velocity = part.AssemblyLinearVelocity or part.Velocity or Vector3.new()
+    
+    if Settings.Aimbot.AccelerationCompensation then
+        -- Advanced prediction with acceleration
+        local currentVel = velocity
+        local acceleration = (currentVel - (part:GetAttribute("LastVelocity") or currentVel)) / predictionTime
+        part:SetAttribute("LastVelocity", currentVel)
+        
+        return part.Position + (velocity * predictionTime) + (0.5 * acceleration * predictionTime * predictionTime)
+    else
+        return part.Position + (velocity * predictionTime)
+    end
+end
+
+function Utils.GetPredictionTime()
+    if Settings.Aimbot.AutoPrediction then
+        local ping = Services.Stats.Network.ServerStatsItem["Data Ping"]:GetValue() / 1000
+        return ping + 0.1 -- Base prediction + ping
+    else
+        return Settings.Aimbot.Prediction
+    end
+end
+
+-- Velocity Tracking
+function Utils.GetVelocity(part)
+    return part.AssemblyLinearVelocity or part.Velocity or Vector3.new()
+end
+
+-- Angle Calculations
+function Utils.CalculateAngle(from, to)
+    local direction = (to - from).Unit
+    return CFrame.new(from, from + direction)
+end
+
+function Utils.GetAngleDifference(angle1, angle2)
+    local diff = angle1 - angle2
+    while diff > 180 do diff = diff - 360 end
+    while diff < -180 do diff = diff + 360 end
+    return abs(diff)
+end
+
+-- Notification System
+function Utils.Notify(title, message, duration)
+    Services.StarterGui:SetCore("SendNotification", {
+        Title = title,
+        Text = message,
+        Duration = duration or 3,
+        Icon = "rbxassetid://1234567890" -- Optional icon
+    })
+end
+
+-- Rainbow Color Generator
+local rainbowHue = 0
+function Utils.GetRainbowColor(speed, saturation, brightness)
+    speed = speed or 1
+    saturation = saturation or 1
+    brightness = brightness or 1
+    
+    rainbowHue = (rainbowHue + (speed * 0.005)) % 1
+    return Color3.fromHSV(rainbowHue, saturation, brightness)
+end
+
+-- Color Lerp
+function Utils.LerpColor(color1, color2, alpha)
+    return color1:Lerp(color2, alpha)
+end
+
+-- Get Health Color
+function Utils.GetHealthColor(health, maxHealth)
+    local healthPercent = health / maxHealth
+    
+    if healthPercent > 0.75 then
+        return Color3.fromRGB(0, 255, 0) -- Green
+    elseif healthPercent > 0.5 then
+        return Color3.fromRGB(255, 255, 0) -- Yellow
+    elseif healthPercent > 0.25 then
+        return Color3.fromRGB(255, 165, 0) -- Orange
+    else
+        return Color3.fromRGB(255, 0, 0) -- Red
+    end
+end
+
+-- Round Number
+function Utils.Round(number, decimals)
+    decimals = decimals or 0
+    local mult = 10 ^ decimals
+    return floor(number * mult + 0.5) / mult
+end
+
+-- Format Distance
+function Utils.FormatDistance(distance)
+    if Settings.ESP.ShowMeters then
+        return string.format("%.0fm", distance)
+    else
+        return string.format("%.0f studs", distance)
+    end
+end
+
+-- Check if Key is Down (supports both string and Enum)
+function Utils.IsKeyDown(keyCode)
+    if not keyCode then return false end
+    
+    -- Handle Enum types directly
+    if typeof(keyCode) == "EnumItem" then
+        if keyCode.EnumType == Enum.UserInputType then
+            return UserInputService:IsMouseButtonPressed(keyCode)
+        elseif keyCode.EnumType == Enum.KeyCode then
+            return UserInputService:IsKeyDown(keyCode)
+        end
+    end
+    
+    -- Handle string keys
+    if type(keyCode) == "string" then
+        if keyCode == "MouseButton1" then
+            return UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
+        elseif keyCode == "MouseButton2" then
+            return UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+        elseif keyCode == "MouseButton3" then
+            return UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton3)
+        else
+            local success, result = pcall(function()
+                return UserInputService:IsKeyDown(Enum.KeyCode[keyCode])
+            end)
+            return success and result or false
+        end
+    end
+    
+    return false
+end
+
+-- Get Part from Bone Name
+function Utils.GetPartFromBone(character, boneName)
+    return character:FindFirstChild(boneName) or character:FindFirstChild("HumanoidRootPart")
+end
+
+-- Get Closest Bone
+function Utils.GetClosestBone(character)
+    local closestBone = nil
+    local shortestDistance = huge
+    local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+    
+    for boneName, enabled in pairs(Settings.Aimbot.TargetBones) do
+        if enabled then
+            local bone = character:FindFirstChild(boneName)
+            if bone then
+                local screenPos, onScreen = Utils.WorldToScreen(bone.Position)
+                if onScreen then
+                    local distance = (mousePos - screenPos).Magnitude
+                    if distance < shortestDistance then
+                        closestBone = bone
+                        shortestDistance = distance
+                    end
+                end
+            end
+        end
+    end
+    
+    return closestBone or character:FindFirstChild("Head")
+end
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SECTION 4: ADVANCED AIMBOT SYSTEM (Lines 901-1800)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+print("Loading Advanced Prediction & Aimbot System...")
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- ADVANCED PREDICTION ENGINE (500+ lines)
+-- Features: Velocity tracking, acceleration, bezier curves, ping compensation,
+-- movement patterns, strafe detection, projectile physics, confidence scoring
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local PredictionEngine = {
+    -- Configuration
+    Config = {
+        MaxHistoryFrames = 30,           -- Frames of position history to keep
+        VelocitySmoothingFactor = 0.3,   -- How much to smooth velocity (0-1)
+        AccelerationWeight = 0.5,        -- Weight for acceleration in prediction
+        BezierSamples = 10,              -- Number of bezier curve samples
+        PingCompensationEnabled = true,  -- Enable ping-based compensation
+        PatternDetectionEnabled = true,  -- Enable movement pattern detection
+        ConfidenceThreshold = 0.3,       -- Minimum confidence to use prediction
+        MaxPredictionDistance = 100,     -- Max studs to predict ahead
+        StrafeDetectionWindow = 15,      -- Frames to analyze for strafing
+        JumpDetectionThreshold = 5,      -- Vertical velocity threshold for jump
+        ProjectileGravity = 196.2,       -- Roblox default gravity
+        AirResistance = 0.01,            -- Air resistance factor
+        GroundFriction = 0.3,            -- Ground friction factor
+    },
+    
+    -- Player tracking data
+    PlayerData = {},
+    
+    -- Movement pattern types
+    PatternTypes = {
+        STATIONARY = "Stationary",
+        LINEAR = "Linear",
+        STRAFE = "Strafe",
+        ZIGZAG = "ZigZag",
+        CIRCULAR = "Circular",
+        ERRATIC = "Erratic",
+        JUMPING = "Jumping",
+        FALLING = "Falling",
+        UNKNOWN = "Unknown"
+    },
+    
+    -- Prediction methods
+    Methods = {
+        VELOCITY = "Velocity",
+        ACCELERATION = "Acceleration",
+        BEZIER = "Bezier",
+        PATTERN = "Pattern",
+        HYBRID = "Hybrid"
+    }
+}
+
+-- Initialize player tracking data structure
+function PredictionEngine:InitPlayerData(player)
+    if self.PlayerData[player] then return self.PlayerData[player] end
+    
+    self.PlayerData[player] = {
+        -- Position history (ring buffer)
+        PositionHistory = {},
+        HistoryIndex = 1,
+        
+        -- Velocity tracking
+        CurrentVelocity = Vector3.new(0, 0, 0),
+        SmoothedVelocity = Vector3.new(0, 0, 0),
+        VelocityHistory = {},
+        
+        -- Acceleration tracking
+        CurrentAcceleration = Vector3.new(0, 0, 0),
+        SmoothedAcceleration = Vector3.new(0, 0, 0),
+        AccelerationHistory = {},
+        
+        -- Movement pattern analysis
+        DetectedPattern = self.PatternTypes.UNKNOWN,
+        PatternConfidence = 0,
+        PatternData = {},
+        
+        -- Strafe detection
+        StrafeDirection = 0, -- -1 = left, 0 = none, 1 = right
+        StrafeFrequency = 0,
+        LastStrafeChange = 0,
+        
+        -- Jump/Fall tracking
+        IsAirborne = false,
+        JumpStartTime = 0,
+        JumpStartPosition = Vector3.new(0, 0, 0),
+        LastGroundPosition = Vector3.new(0, 0, 0),
+        AirTime = 0,
+        
+        -- Timing
+        LastUpdateTime = tick(),
+        DeltaTime = 0,
+        FrameCount = 0,
+        
+        -- Prediction confidence
+        PredictionConfidence = 0,
+        LastPrediction = Vector3.new(0, 0, 0),
+        PredictionError = 0,
+        
+        -- Network compensation
+        EstimatedPing = 50,
+        PingHistory = {},
+        
+        -- Direction tracking
+        FacingDirection = Vector3.new(0, 0, 1),
+        MoveDirection = Vector3.new(0, 0, 0),
+        DirectionChangeCount = 0,
+        LastDirectionChangeTime = 0,
+    }
+    
+    return self.PlayerData[player]
+end
+
+-- Clean up player data when they leave
+function PredictionEngine:RemovePlayerData(player)
+    self.PlayerData[player] = nil
+end
+
+-- Record position in history (ring buffer for efficiency)
+function PredictionEngine:RecordPosition(data, position, timestamp)
+    local maxFrames = self.Config.MaxHistoryFrames
+    
+    -- Store in ring buffer
+    data.PositionHistory[data.HistoryIndex] = {
+        Position = position,
+        Time = timestamp
+    }
+    
+    -- Advance ring buffer index
+    data.HistoryIndex = (data.HistoryIndex % maxFrames) + 1
+    data.FrameCount = math.min(data.FrameCount + 1, maxFrames)
+end
+
+-- Get position from history (0 = current, negative = past)
+function PredictionEngine:GetHistoricalPosition(data, framesAgo)
+    if data.FrameCount == 0 then return nil end
+    
+    framesAgo = math.clamp(framesAgo, 0, data.FrameCount - 1)
+    local maxFrames = self.Config.MaxHistoryFrames
+    
+    -- Calculate index in ring buffer
+    local index = data.HistoryIndex - 1 - framesAgo
+    if index <= 0 then index = index + maxFrames end
+    
+    return data.PositionHistory[index]
+end
+
+-- Calculate instantaneous velocity from position history
+function PredictionEngine:CalculateVelocity(data)
+    local current = self:GetHistoricalPosition(data, 0)
+    local previous = self:GetHistoricalPosition(data, 1)
+    
+    if not current or not previous then
+        return Vector3.new(0, 0, 0)
+    end
+    
+    local deltaTime = current.Time - previous.Time
+    if deltaTime <= 0 then deltaTime = 0.016 end -- Default to ~60fps
+    
+    local velocity = (current.Position - previous.Position) / deltaTime
+    return velocity
+end
+
+-- Calculate smoothed velocity using exponential moving average
+function PredictionEngine:CalculateSmoothedVelocity(data, newVelocity)
+    local alpha = self.Config.VelocitySmoothingFactor
+    local smoothed = data.SmoothedVelocity:Lerp(newVelocity, alpha)
+    return smoothed
+end
+
+-- Calculate acceleration from velocity history
+function PredictionEngine:CalculateAcceleration(data)
+    if #data.VelocityHistory < 2 then
+        return Vector3.new(0, 0, 0)
+    end
+    
+    local currentVel = data.VelocityHistory[#data.VelocityHistory]
+    local previousVel = data.VelocityHistory[#data.VelocityHistory - 1]
+    
+    local deltaTime = data.DeltaTime
+    if deltaTime <= 0 then deltaTime = 0.016 end
+    
+    local acceleration = (currentVel.Velocity - previousVel.Velocity) / deltaTime
+    return acceleration
+end
+
+-- Record velocity in history
+function PredictionEngine:RecordVelocity(data, velocity, timestamp)
+    table.insert(data.VelocityHistory, {
+        Velocity = velocity,
+        Time = timestamp
+    })
+    
+    -- Keep history limited
+    while #data.VelocityHistory > self.Config.MaxHistoryFrames do
+        table.remove(data.VelocityHistory, 1)
+    end
+end
+
+-- Detect movement pattern from history
+function PredictionEngine:DetectMovementPattern(data)
+    if data.FrameCount < 10 then
+        return self.PatternTypes.UNKNOWN, 0
+    end
+    
+    local positions = {}
+    for i = 0, math.min(data.FrameCount - 1, 20) do
+        local histPos = self:GetHistoricalPosition(data, i)
+        if histPos then
+            table.insert(positions, histPos.Position)
+        end
+    end
+    
+    if #positions < 5 then
+        return self.PatternTypes.UNKNOWN, 0
+    end
+    
+    -- Calculate movement metrics
+    local totalDistance = 0
+    local horizontalChanges = 0
+    local verticalMovement = 0
+    local directionChanges = 0
+    local lastDirection = nil
+    
+    for i = 2, #positions do
+        local delta = positions[i-1] - positions[i]
+        totalDistance = totalDistance + delta.Magnitude
+        verticalMovement = verticalMovement + math.abs(delta.Y)
+        
+        -- Track horizontal direction changes
+        local horizontalDir = Vector2.new(delta.X, delta.Z)
+        if horizontalDir.Magnitude > 0.1 then
+            local currentDir = horizontalDir.Unit
+            if lastDirection then
+                local dot = currentDir:Dot(lastDirection)
+                if dot < 0.5 then -- Significant direction change
+                    directionChanges = directionChanges + 1
+                end
+                if dot < -0.3 then -- Near reversal
+                    horizontalChanges = horizontalChanges + 1
+                end
+            end
+            lastDirection = currentDir
+        end
+    end
+    
+    -- Analyze patterns
+    local avgVelocity = totalDistance / #positions
+    
+    -- Stationary check
+    if avgVelocity < 0.5 then
+        return self.PatternTypes.STATIONARY, 0.95
+    end
+    
+    -- Airborne check
+    if data.IsAirborne then
+        if data.CurrentVelocity.Y > self.Config.JumpDetectionThreshold then
+            return self.PatternTypes.JUMPING, 0.9
+        else
+            return self.PatternTypes.FALLING, 0.9
+        end
+    end
+    
+    -- Strafe/ZigZag check
+    local strafeRatio = horizontalChanges / #positions
+    if strafeRatio > 0.3 then
+        if strafeRatio > 0.5 then
+            return self.PatternTypes.ZIGZAG, 0.8
+        else
+            return self.PatternTypes.STRAFE, 0.75
+        end
+    end
+    
+    -- Erratic movement check
+    local erraticRatio = directionChanges / #positions
+    if erraticRatio > 0.4 then
+        return self.PatternTypes.ERRATIC, 0.6
+    end
+    
+    -- Linear movement (default)
+    if avgVelocity > 1 then
+        return self.PatternTypes.LINEAR, 0.85
+    end
+    
+    return self.PatternTypes.UNKNOWN, 0.3
+end
+
+-- Detect strafe direction and frequency
+function PredictionEngine:AnalyzeStrafing(data)
+    local window = self.Config.StrafeDetectionWindow
+    if data.FrameCount < window then return end
+    
+    local positions = {}
+    for i = 0, window - 1 do
+        local histPos = self:GetHistoricalPosition(data, i)
+        if histPos then
+            table.insert(positions, histPos)
+        end
+    end
+    
+    if #positions < window / 2 then return end
+    
+    -- Analyze horizontal movement relative to facing direction
+    local strafeChanges = 0
+    local lastStrafeDir = 0
+    
+    for i = 2, #positions do
+        local delta = positions[i-1].Position - positions[i].Position
+        local horizontal = Vector2.new(delta.X, delta.Z)
+        
+        if horizontal.Magnitude > 0.3 then
+            -- Determine strafe direction relative to move direction
+            local facing = Vector2.new(data.FacingDirection.X, data.FacingDirection.Z)
+            if facing.Magnitude > 0 then
+                facing = facing.Unit
+                local perpendicular = Vector2.new(-facing.Y, facing.X)
+                local strafeAmount = horizontal:Dot(perpendicular)
+                
+                local currentStrafeDir = strafeAmount > 0.1 and 1 or (strafeAmount < -0.1 and -1 or 0)
+                
+                if currentStrafeDir ~= 0 and currentStrafeDir ~= lastStrafeDir and lastStrafeDir ~= 0 then
+                    strafeChanges = strafeChanges + 1
+                end
+                lastStrafeDir = currentStrafeDir
+            end
+        end
+    end
+    
+    -- Calculate strafe frequency
+    if #positions > 1 then
+        local timeSpan = positions[1].Time - positions[#positions].Time
+        if timeSpan > 0 then
+            data.StrafeFrequency = strafeChanges / timeSpan
+        end
+    end
+    
+    data.StrafeDirection = lastStrafeDir
+end
+
+-- Update airborne state
+function PredictionEngine:UpdateAirborneState(data, character)
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    
+    local wasAirborne = data.IsAirborne
+    local floorMaterial = humanoid.FloorMaterial
+    
+    data.IsAirborne = (floorMaterial == Enum.Material.Air)
+    
+    -- Track jump start
+    if data.IsAirborne and not wasAirborne then
+        data.JumpStartTime = tick()
+        data.JumpStartPosition = character.HumanoidRootPart and character.HumanoidRootPart.Position or Vector3.new(0, 0, 0)
+    end
+    
+    -- Track landing
+    if not data.IsAirborne and wasAirborne then
+        data.LastGroundPosition = character.HumanoidRootPart and character.HumanoidRootPart.Position or Vector3.new(0, 0, 0)
+    end
+    
+    -- Update air time
+    if data.IsAirborne then
+        data.AirTime = tick() - data.JumpStartTime
+    else
+        data.AirTime = 0
+    end
+end
+
+-- Estimate network ping from prediction error
+function PredictionEngine:EstimatePing(data, actualPosition)
+    if data.LastPrediction.Magnitude == 0 then return end
+    
+    local error = (actualPosition - data.LastPrediction).Magnitude
+    data.PredictionError = error
+    
+    -- Use error to estimate ping (rough approximation)
+    -- Higher error suggests higher latency
+    local estimatedPingMs = math.clamp(error * 5, 20, 300)
+    
+    table.insert(data.PingHistory, estimatedPingMs)
+    while #data.PingHistory > 20 do
+        table.remove(data.PingHistory, 1)
+    end
+    
+    -- Average ping estimate
+    local totalPing = 0
+    for _, ping in ipairs(data.PingHistory) do
+        totalPing = totalPing + ping
+    end
+    data.EstimatedPing = totalPing / #data.PingHistory
+end
+
+-- Linear velocity-based prediction
+function PredictionEngine:PredictLinear(data, predictionTime)
+    local velocity = data.SmoothedVelocity
+    local currentPos = self:GetHistoricalPosition(data, 0)
+    
+    if not currentPos then return nil end
+    
+    local predictedPos = currentPos.Position + (velocity * predictionTime)
+    return predictedPos
+end
+
+-- Acceleration-based prediction (quadratic)
+function PredictionEngine:PredictWithAcceleration(data, predictionTime)
+    local velocity = data.SmoothedVelocity
+    local acceleration = data.SmoothedAcceleration
+    local currentPos = self:GetHistoricalPosition(data, 0)
+    
+    if not currentPos then return nil end
+    
+    -- Physics equation: pos = pos0 + v*t + 0.5*a*t^2
+    local predictedPos = currentPos.Position + 
+        (velocity * predictionTime) + 
+        (acceleration * 0.5 * predictionTime * predictionTime)
+    
+    return predictedPos
+end
+
+-- Bezier curve prediction for smooth movement
+function PredictionEngine:PredictBezier(data, predictionTime)
+    -- Need at least 4 points for cubic bezier
+    if data.FrameCount < 4 then
+        return self:PredictLinear(data, predictionTime)
+    end
+    
+    -- Get control points from history
+    local p0 = self:GetHistoricalPosition(data, 3)
+    local p1 = self:GetHistoricalPosition(data, 2)
+    local p2 = self:GetHistoricalPosition(data, 1)
+    local p3 = self:GetHistoricalPosition(data, 0)
+    
+    if not (p0 and p1 and p2 and p3) then
+        return self:PredictLinear(data, predictionTime)
+    end
+    
+    -- Calculate time parameter (extrapolate beyond 1.0)
+    local timeSpan = p3.Time - p0.Time
+    if timeSpan <= 0 then timeSpan = 0.05 end
+    local t = 1.0 + (predictionTime / timeSpan)
+    
+    -- Cubic bezier formula: B(t) = (1-t)^3*P0 + 3*(1-t)^2*t*P1 + 3*(1-t)*t^2*P2 + t^3*P3
+    local oneMinusT = 1 - t
+    local predictedPos = 
+        p0.Position * (oneMinusT * oneMinusT * oneMinusT) +
+        p1.Position * (3 * oneMinusT * oneMinusT * t) +
+        p2.Position * (3 * oneMinusT * t * t) +
+        p3.Position * (t * t * t)
+    
+    return predictedPos
+end
+
+-- Pattern-based prediction
+function PredictionEngine:PredictFromPattern(data, predictionTime)
+    local pattern = data.DetectedPattern
+    local currentPos = self:GetHistoricalPosition(data, 0)
+    
+    if not currentPos then return nil end
+    
+    local basePos = currentPos.Position
+    local velocity = data.SmoothedVelocity
+    
+    if pattern == self.PatternTypes.STATIONARY then
+        return basePos
+        
+    elseif pattern == self.PatternTypes.LINEAR then
+        return basePos + (velocity * predictionTime)
+        
+    elseif pattern == self.PatternTypes.STRAFE then
+        -- Predict strafe reversal
+        local strafePhase = (tick() - data.LastStrafeChange) * data.StrafeFrequency * math.pi
+        local strafeFactor = math.sin(strafePhase + predictionTime * data.StrafeFrequency * math.pi)
+        
+        local facing = Vector3.new(data.FacingDirection.X, 0, data.FacingDirection.Z).Unit
+        local strafeDir = Vector3.new(-facing.Z, 0, facing.X)
+        
+        local forwardPrediction = velocity * predictionTime
+        local strafePrediction = strafeDir * strafeFactor * velocity.Magnitude * 0.5
+        
+        return basePos + forwardPrediction + strafePrediction
+        
+    elseif pattern == self.PatternTypes.ZIGZAG then
+        -- More aggressive strafe prediction
+        local zigzagPhase = (tick() * data.StrafeFrequency * 2) * math.pi
+        local zigzagFactor = math.sin(zigzagPhase + predictionTime * data.StrafeFrequency * 2 * math.pi)
+        
+        local facing = Vector3.new(data.FacingDirection.X, 0, data.FacingDirection.Z).Unit
+        local strafeDir = Vector3.new(-facing.Z, 0, facing.X)
+        
+        local forwardPrediction = velocity * predictionTime
+        local zigzagPrediction = strafeDir * zigzagFactor * velocity.Magnitude * 0.7
+        
+        return basePos + forwardPrediction + zigzagPrediction
+        
+    elseif pattern == self.PatternTypes.JUMPING then
+        -- Projectile motion for jumping
+        local gravity = self.Config.ProjectileGravity
+        local verticalVel = velocity.Y
+        local horizontalVel = Vector3.new(velocity.X, 0, velocity.Z)
+        
+        local predictedHorizontal = basePos + (horizontalVel * predictionTime)
+        local predictedVertical = basePos.Y + (verticalVel * predictionTime) - (0.5 * gravity * predictionTime * predictionTime)
+        
+        return Vector3.new(predictedHorizontal.X, math.max(predictedVertical, data.LastGroundPosition.Y), predictedHorizontal.Z)
+        
+    elseif pattern == self.PatternTypes.FALLING then
+        -- Falling with terminal velocity
+        local gravity = self.Config.ProjectileGravity
+        local terminalVelocity = 100 -- studs/sec
+        
+        local currentFallSpeed = math.abs(velocity.Y)
+        local predictedFallSpeed = math.min(currentFallSpeed + gravity * predictionTime, terminalVelocity)
+        
+        local horizontalVel = Vector3.new(velocity.X, 0, velocity.Z)
+        local predictedHorizontal = basePos + (horizontalVel * predictionTime)
+        local predictedVertical = basePos.Y - (predictedFallSpeed * predictionTime)
+        
+        return Vector3.new(predictedHorizontal.X, predictedVertical, predictedHorizontal.Z)
+        
+    elseif pattern == self.PatternTypes.ERRATIC then
+        -- Use reduced prediction for erratic movement
+        return basePos + (velocity * predictionTime * 0.5)
+        
+    else
+        -- Default to linear
+        return basePos + (velocity * predictionTime)
+    end
+end
+
+-- Hybrid prediction combining multiple methods
+function PredictionEngine:PredictHybrid(data, predictionTime)
+    local linearPred = self:PredictLinear(data, predictionTime)
+    local accelPred = self:PredictWithAcceleration(data, predictionTime)
+    local patternPred = self:PredictFromPattern(data, predictionTime)
+    
+    if not (linearPred and accelPred and patternPred) then
+        return linearPred or accelPred or patternPred
+    end
+    
+    -- Weight predictions based on pattern confidence and movement type
+    local patternWeight = data.PatternConfidence
+    local accelWeight = self.Config.AccelerationWeight * (1 - patternWeight)
+    local linearWeight = 1 - patternWeight - accelWeight
+    
+    -- Ensure weights are positive
+    linearWeight = math.max(linearWeight, 0.1)
+    
+    -- Normalize weights
+    local totalWeight = linearWeight + accelWeight + patternWeight
+    linearWeight = linearWeight / totalWeight
+    accelWeight = accelWeight / totalWeight
+    patternWeight = patternWeight / totalWeight
+    
+    -- Weighted average
+    local hybridPred = 
+        linearPred * linearWeight +
+        accelPred * accelWeight +
+        patternPred * patternWeight
+    
+    return hybridPred
+end
+
+-- Add ping compensation to prediction
+function PredictionEngine:ApplyPingCompensation(data, predictedPos, basePos)
+    if not self.Config.PingCompensationEnabled then
+        return predictedPos
+    end
+    
+    -- Convert ping to seconds
+    local pingSeconds = data.EstimatedPing / 1000
+    
+    -- Add extra prediction for ping
+    local velocity = data.SmoothedVelocity
+    local pingOffset = velocity * pingSeconds
+    
+    return predictedPos + pingOffset
+end
+
+-- Calculate prediction confidence
+function PredictionEngine:CalculateConfidence(data)
+    local confidence = 0.5 -- Base confidence
+    
+    -- More history = more confidence
+    local historyFactor = math.clamp(data.FrameCount / self.Config.MaxHistoryFrames, 0, 1)
+    confidence = confidence + (historyFactor * 0.2)
+    
+    -- Pattern confidence
+    confidence = confidence + (data.PatternConfidence * 0.2)
+    
+    -- Lower confidence for erratic movement
+    if data.DetectedPattern == self.PatternTypes.ERRATIC then
+        confidence = confidence * 0.6
+    end
+    
+    -- Lower confidence for airborne targets
+    if data.IsAirborne then
+        confidence = confidence * 0.8
+    end
+    
+    -- Adjust based on prediction error history
+    if data.PredictionError > 0 then
+        local errorFactor = math.clamp(1 - (data.PredictionError / 20), 0.3, 1)
+        confidence = confidence * errorFactor
+    end
+    
+    return math.clamp(confidence, 0, 1)
+end
+
+-- Main update function - call this every frame for each tracked player
+function PredictionEngine:Update(player)
+    local character = player.Character
+    if not character then return end
+    
+    local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")
+    if not rootPart then return end
+    
+    local data = self:InitPlayerData(player)
+    local currentTime = tick()
+    local position = rootPart.Position
+    
+    -- Update delta time
+    data.DeltaTime = currentTime - data.LastUpdateTime
+    data.LastUpdateTime = currentTime
+    
+    -- Estimate ping from previous prediction
+    self:EstimatePing(data, position)
+    
+    -- Record position
+    self:RecordPosition(data, position, currentTime)
+    
+    -- Calculate velocity
+    data.CurrentVelocity = self:CalculateVelocity(data)
+    data.SmoothedVelocity = self:CalculateSmoothedVelocity(data, data.CurrentVelocity)
+    self:RecordVelocity(data, data.SmoothedVelocity, currentTime)
+    
+    -- Calculate acceleration
+    data.CurrentAcceleration = self:CalculateAcceleration(data)
+    data.SmoothedAcceleration = data.SmoothedAcceleration:Lerp(data.CurrentAcceleration, 0.3)
+    
+    -- Update facing direction
+    if rootPart.CFrame then
+        data.FacingDirection = rootPart.CFrame.LookVector
+    end
+    
+    -- Update move direction
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        data.MoveDirection = humanoid.MoveDirection
+    end
+    
+    -- Update airborne state
+    self:UpdateAirborneState(data, character)
+    
+    -- Detect movement pattern
+    data.DetectedPattern, data.PatternConfidence = self:DetectMovementPattern(data)
+    
+    -- Analyze strafing
+    self:AnalyzeStrafing(data)
+    
+    -- Update confidence
+    data.PredictionConfidence = self:CalculateConfidence(data)
+end
+
+-- Main prediction function - returns predicted position
+function PredictionEngine:GetPrediction(player, predictionTime, method)
+    local data = self.PlayerData[player]
+    if not data then return nil end
+    
+    method = method or self.Methods.HYBRID
+    
+    local predictedPos
+    
+    if method == self.Methods.VELOCITY then
+        predictedPos = self:PredictLinear(data, predictionTime)
+    elseif method == self.Methods.ACCELERATION then
+        predictedPos = self:PredictWithAcceleration(data, predictionTime)
+    elseif method == self.Methods.BEZIER then
+        predictedPos = self:PredictBezier(data, predictionTime)
+    elseif method == self.Methods.PATTERN then
+        predictedPos = self:PredictFromPattern(data, predictionTime)
+    else -- HYBRID
+        predictedPos = self:PredictHybrid(data, predictionTime)
+    end
+    
+    if not predictedPos then return nil end
+    
+    -- Get base position for ping compensation
+    local currentPos = self:GetHistoricalPosition(data, 0)
+    local basePos = currentPos and currentPos.Position or predictedPos
+    
+    -- Apply ping compensation
+    predictedPos = self:ApplyPingCompensation(data, predictedPos, basePos)
+    
+    -- Clamp prediction distance
+    local predictionOffset = predictedPos - basePos
+    if predictionOffset.Magnitude > self.Config.MaxPredictionDistance then
+        predictedPos = basePos + (predictionOffset.Unit * self.Config.MaxPredictionDistance)
+    end
+    
+    -- Store for error tracking
+    data.LastPrediction = predictedPos
+    
+    return predictedPos, data.PredictionConfidence, data.DetectedPattern
+end
+
+-- Get player tracking data (for debugging/UI)
+function PredictionEngine:GetPlayerData(player)
+    return self.PlayerData[player]
+end
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- ADVANCED AIMBOT SYSTEM (800+ lines)
+-- Features: Multiple aim methods, dynamic smoothing, aim curves, priority targeting,
+-- bone priority, visibility prediction, anti-shake, recoil/spread compensation,
+-- target switching, lock persistence, humanization, anti-detection, threat assessment
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local Aimbot = {
+    -- State
+    Target = nil,
+    Locked = false,
+    ToggleActive = false,
+    Running = false,
+    LastTarget = nil,
+    LockTime = 0,
+    OriginalSensitivity = 1,
+    
+    -- Drawing objects
+    FOVCircle = nil,
+    FOVCircleOutline = nil,
+    TargetLine = nil,
+    PredictionDot = nil,
+    
+    -- Tracking data
+    Predictions = {},
+    TargetHistory = {},
+    AimHistory = {},
+    
+    -- Performance
+    LastUpdateTime = 0,
+    UpdateDelta = 0,
+    FrameCount = 0,
+    
+    -- Aim state
+    CurrentAimPosition = Vector3.new(0, 0, 0),
+    SmoothedAimPosition = Vector3.new(0, 0, 0),
+    AimVelocity = Vector3.new(0, 0, 0),
+    
+    -- Target info cache
+    TargetInfo = {
+        Player = nil,
+        Character = nil,
+        RootPart = nil,
+        TargetPart = nil,
+        Position = Vector3.new(0, 0, 0),
+        PredictedPosition = Vector3.new(0, 0, 0),
+        ScreenPosition = Vector2.new(0, 0),
+        Distance = 0,
+        Health = 100,
+        Velocity = Vector3.new(0, 0, 0),
+        ThreatLevel = 0,
+        Visible = false,
+        InFOV = false,
+    },
+    
+    -- Configuration
+    Config = {
+        -- Smoothing
+        BaseSmoothness = 0.1,
+        DynamicSmoothingEnabled = true,
+        MinSmoothness = 0.02,
+        MaxSmoothness = 0.5,
+        
+        -- Aim curves
+        AimCurveType = "Sine", -- Linear, Sine, Exponential, Bezier
+        AimCurveIntensity = 1.0,
+        
+        -- Target switching
+        TargetSwitchCooldown = 0.3,
+        TargetSwitchThreshold = 50, -- Pixels
+        
+        -- Lock persistence
+        LockPersistenceTime = 0.5,
+        LockBreakDistance = 200,
+        
+        -- Anti-shake
+        AntiShakeEnabled = true,
+        AntiShakeThreshold = 2,
+        AntiShakeSmoothness = 0.5,
+        
+        -- Recoil compensation
+        RecoilCompensationEnabled = false,
+        RecoilCompensationAmount = 0.5,
+        
+        -- Humanization
+        HumanizationEnabled = true,
+        HumanReactionTime = 0.1,
+        HumanMicroAdjustments = true,
+        HumanOvershotCorrection = true,
+        
+        -- Threat assessment
+        ThreatAssessmentEnabled = true,
+        PrioritizeByThreat = false,
+        PrioritizeByHealth = false,
+        PrioritizeByDistance = true,
+        
+        -- Visibility
+        VisibilityPredictionEnabled = true,
+        PredictiveVisibilityTime = 0.2,
+        
+        -- Bone priority
+        BonePriorityEnabled = true,
+        BonePriorityList = {"Head", "UpperTorso", "HumanoidRootPart", "LowerTorso"},
+        
+        -- Performance
+        MaxTargetChecksPerFrame = 10,
+        UpdateRateLimit = 0, -- 0 = no limit
+    }
+}
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- ADVANCED AIMBOT HELPER FUNCTIONS
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Calculate aim curve value (0-1 input, 0-1 output)
+function Aimbot:ApplyAimCurve(t, curveType, intensity)
+    curveType = curveType or self.Config.AimCurveType
+    intensity = intensity or self.Config.AimCurveIntensity
+    
+    t = math.clamp(t, 0, 1)
+    
+    if curveType == "Linear" then
+        return t
+        
+    elseif curveType == "Sine" then
+        -- Sine ease-out for smooth deceleration
+        return math.sin(t * math.pi / 2)
+        
+    elseif curveType == "Exponential" then
+        -- Exponential for fast start, slow end
+        if t == 0 then return 0 end
+        return math.pow(2, 10 * (t - 1)) * intensity
+        
+    elseif curveType == "Bezier" then
+        -- Cubic bezier approximation
+        local p1 = 0.25 * intensity
+        local p2 = 1.0 - (0.25 * intensity)
+        return 3 * (1-t) * (1-t) * t * p1 + 3 * (1-t) * t * t * p2 + t * t * t
+        
+    elseif curveType == "Elastic" then
+        -- Elastic overshoot
+        if t == 1 then return 1 end
+        local p = 0.3
+        return math.pow(2, -10 * t) * math.sin((t - p/4) * (2 * math.pi) / p) + 1
+        
+    elseif curveType == "Back" then
+        -- Slight overshoot and return
+        local s = 1.70158 * intensity
+        return t * t * ((s + 1) * t - s)
+        
+    else
+        return t
+    end
+end
+
+-- Calculate dynamic smoothness based on various factors
+function Aimbot:CalculateDynamicSmoothness(distance, targetVelocity, screenDistance)
+    if not self.Config.DynamicSmoothingEnabled then
+        return self.Config.BaseSmoothness
+    end
+    
+    local baseSmoothness = self.Config.BaseSmoothness
+    local minSmooth = self.Config.MinSmoothness
+    local maxSmooth = self.Config.MaxSmoothness
+    
+    -- Distance factor (further = smoother)
+    local distanceFactor = math.clamp(distance / 500, 0.5, 2)
+    
+    -- Velocity factor (faster target = less smooth)
+    local velocityMag = targetVelocity.Magnitude
+    local velocityFactor = math.clamp(1 - (velocityMag / 100), 0.3, 1)
+    
+    -- Screen distance factor (further from crosshair = smoother start)
+    local screenFactor = math.clamp(screenDistance / 200, 0.5, 1.5)
+    
+    -- Combine factors
+    local smoothness = baseSmoothness * distanceFactor * velocityFactor * screenFactor
+    
+    return math.clamp(smoothness, minSmooth, maxSmooth)
+end
+
+-- Apply anti-shake stabilization
+function Aimbot:ApplyAntiShake(currentPos, targetPos)
+    if not self.Config.AntiShakeEnabled then
+        return targetPos
+    end
+    
+    local delta = targetPos - currentPos
+    local threshold = self.Config.AntiShakeThreshold
+    
+    -- If movement is below threshold, stabilize
+    if delta.Magnitude < threshold then
+        local smoothness = self.Config.AntiShakeSmoothness
+        return currentPos:Lerp(targetPos, smoothness)
+    end
+    
+    return targetPos
+end
+
+-- Apply humanization to aim
+function Aimbot:ApplyHumanization(targetPos, currentPos, deltaTime)
+    if not self.Config.HumanizationEnabled then
+        return targetPos
+    end
+    
+    local humanizedPos = targetPos
+    
+    -- Micro adjustments (small random movements)
+    if self.Config.HumanMicroAdjustments then
+        local microAmount = 0.5
+        local microOffset = Vector3.new(
+            (math.random() - 0.5) * microAmount,
+            (math.random() - 0.5) * microAmount,
+            (math.random() - 0.5) * microAmount
+        )
+        humanizedPos = humanizedPos + microOffset
+    end
+    
+    -- Reaction time delay (slight lag in tracking)
+    if self.Config.HumanReactionTime > 0 then
+        local reactionFactor = math.clamp(deltaTime / self.Config.HumanReactionTime, 0, 1)
+        humanizedPos = currentPos:Lerp(humanizedPos, reactionFactor)
+    end
+    
+    return humanizedPos
+end
+
+-- Calculate overshot correction
+function Aimbot:ApplyOvershotCorrection(currentPos, targetPos, lastPos)
+    if not self.Config.HumanOvershotCorrection then
+        return targetPos
+    end
+    
+    if lastPos.Magnitude == 0 then
+        return targetPos
+    end
+    
+    -- Check if we overshot the target
+    local currentDelta = targetPos - currentPos
+    local lastDelta = targetPos - lastPos
+    
+    -- If we crossed the target (dot product negative), apply correction
+    local dot = currentDelta:Dot(lastDelta)
+    if dot < 0 then
+        -- We overshot, slow down
+        return currentPos:Lerp(targetPos, 0.5)
+    end
+    
+    return targetPos
+end
+
+-- Calculate threat level for a player
+function Aimbot:CalculateThreatLevel(player)
+    if not self.Config.ThreatAssessmentEnabled then
+        return 50 -- Default medium threat
+    end
+    
+    local threat = 50
+    local character = player.Character
+    if not character then return threat end
+    
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    
+    if not humanoid or not rootPart then return threat end
+    
+    local localRoot = GetRootPart()
+    if not localRoot then return threat end
+    
+    -- Distance factor (closer = more threatening)
+    local distance = (rootPart.Position - localRoot.Position).Magnitude
+    threat = threat + math.clamp((200 - distance) / 2, -25, 25)
+    
+    -- Health factor (lower health = less threatening unless they're aggressive)
+    local health = humanoid.Health
+    local maxHealth = humanoid.MaxHealth
+    local healthPercent = health / maxHealth
+    threat = threat - (1 - healthPercent) * 10
+    
+    -- Velocity factor (moving towards you = more threatening)
+    local velocity = rootPart.Velocity
+    local directionToLocal = (localRoot.Position - rootPart.Position).Unit
+    local approachSpeed = velocity:Dot(directionToLocal)
+    threat = threat + math.clamp(approachSpeed / 2, -20, 20)
+    
+    -- Facing factor (looking at you = more threatening)
+    local lookVector = rootPart.CFrame.LookVector
+    local facingScore = lookVector:Dot(directionToLocal)
+    threat = threat + facingScore * 15
+    
+    return math.clamp(threat, 0, 100)
+end
+
+-- Get best bone for targeting with priority system
+function Aimbot:GetBestBone(character)
+    if not self.Config.BonePriorityEnabled then
+        return character:FindFirstChild(Settings.Aimbot.TargetPart) or character:FindFirstChild("HumanoidRootPart")
+    end
+    
+    local priorityList = self.Config.BonePriorityList
+    
+    for _, boneName in ipairs(priorityList) do
+        local bone = character:FindFirstChild(boneName)
+        if bone then
+            -- Check if bone is visible
+            if Settings.Aimbot.VisibleCheck then
+                if Utils.IsVisible(bone) then
+                    return bone
+                end
+            else
+                return bone
+            end
+        end
+    end
+    
+    -- Fallback
+    return character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Head")
+end
+
+-- Predict if target will be visible in the future
+function Aimbot:PredictVisibility(player, predictionTime)
+    if not self.Config.VisibilityPredictionEnabled then
+        return true
+    end
+    
+    local data = PredictionEngine:GetPlayerData(player)
+    if not data then return true end
+    
+    -- Get predicted position
+    local predictedPos = PredictionEngine:GetPrediction(player, predictionTime, PredictionEngine.Methods.HYBRID)
+    if not predictedPos then return true end
+    
+    -- Raycast to predicted position
+    local localRoot = GetRootPart()
+    if not localRoot then return true end
+    
+    local origin = Camera.CFrame.Position
+    local direction = predictedPos - origin
+    
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
+    
+    local result = Workspace:Raycast(origin, direction, rayParams)
+    
+    if result then
+        local hitPart = result.Instance
+        local hitPlayer = Utils.GetPlayerFromPart(hitPart)
+        return hitPlayer == player
+    end
+    
+    return true
+end
+
+-- Advanced target scoring system
+function Aimbot:ScoreTarget(player)
+    local character = player.Character
+    if not character then return -999 end
+    
+    local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")
+    if not rootPart then return -999 end
+    
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then return -999 end
+    
+    local score = 100 -- Base score
+    local localRoot = GetRootPart()
+    
+    -- Distance scoring
+    if localRoot then
+        local distance = (rootPart.Position - localRoot.Position).Magnitude
+        if self.Config.PrioritizeByDistance then
+            score = score - (distance / 10) -- Closer = higher score
+        end
+        
+        -- Too far penalty
+        if distance > Settings.Aimbot.MaxDistance then
+            return -999
+        end
+    end
+    
+    -- Screen position scoring (closer to crosshair = higher)
+    local screenPos, onScreen, depth = Utils.WorldToScreen(rootPart.Position)
+    
+    -- STRICT FOV CHECK - Target must be on screen and in front of camera
+    if not onScreen or depth <= 0 then
+        return -999 -- Target is behind camera or off screen - REJECT
+    end
+    
+    local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+    local screenDist = (mousePos - screenPos).Magnitude
+    score = score - (screenDist / 5)
+    
+    -- FOV check - STRICT
+    if Settings.Aimbot.UseFOV and screenDist > Settings.Aimbot.FOVRadius then
+        return -999 -- Outside FOV - REJECT
+    end
+    
+    -- Health scoring
+    if self.Config.PrioritizeByHealth then
+        local healthPercent = humanoid.Health / humanoid.MaxHealth
+        score = score + ((1 - healthPercent) * 30) -- Lower health = higher priority
+    end
+    
+    -- Threat scoring
+    if self.Config.PrioritizeByThreat then
+        local threat = self:CalculateThreatLevel(player)
+        score = score + (threat / 2)
+    end
+    
+    -- Visibility bonus
+    if Utils.IsVisible(rootPart) then
+        score = score + 20
+    else
+        if Settings.Aimbot.VisibleCheck then
+            return -999
+        end
+        score = score - 30
+    end
+    
+    -- Team/friend penalties
+    if Settings.Aimbot.IgnoreTeammates and Utils.IsTeammate(player) then
+        return -999
+    end
+    if Settings.Aimbot.IgnoreFriends and Utils.IsFriend(player) then
+        return -999
+    end
+    
+    -- Blacklist check
+    if table.find(Settings.Aimbot.Blacklist or {}, player.Name) then
+        return -999
+    end
+    
+    return score
+end
+
+-- Advanced target selection with STRICT FOV
+function Aimbot:SelectBestTarget()
+    local bestTarget = nil
+    local bestScore = -999
+    local checkedCount = 0
+    
+    -- Get mouse position for FOV check
+    local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+    
+    for _, player in pairs(Utils.GetAllPlayers()) do
+        if player == LocalPlayer then continue end
+        
+        -- EARLY FOV CHECK - Skip players not in FOV immediately
+        local character = player.Character
+        if not character then continue end
+        
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        if not rootPart then continue end
+        
+        -- Check if on screen and in front of camera
+        local screenPos, onScreen, depth = Utils.WorldToScreen(rootPart.Position)
+        if not onScreen or depth <= 0 then
+            continue -- Behind camera or off screen - SKIP
+        end
+        
+        -- STRICT FOV check BEFORE scoring
+        if Settings.Aimbot.UseFOV then
+            local screenDist = (mousePos - screenPos).Magnitude
+            if screenDist > Settings.Aimbot.FOVRadius then
+                continue -- Outside FOV - SKIP immediately
+            end
+        end
+        
+        checkedCount = checkedCount + 1
+        if checkedCount > self.Config.MaxTargetChecksPerFrame then
+            break -- Performance limit
+        end
+        
+        local score = self:ScoreTarget(player)
+        
+        if score > bestScore then
+            bestScore = score
+            bestTarget = player
+        end
+    end
+    
+    return bestTarget, bestScore
+end
+
+-- Check if current target should be kept
+function Aimbot:ShouldKeepTarget()
+    if not self.Target then return false end
+    if not Utils.IsPlayerAlive(self.Target) then return false end
+    
+    local character = self.Target.Character
+    if not character then return false end
+    
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return false end
+    
+    local localRoot = GetRootPart()
+    if not localRoot then return true end
+    
+    -- Distance check
+    local distance = (rootPart.Position - localRoot.Position).Magnitude
+    if distance > self.Config.LockBreakDistance then
+        return false
+    end
+    
+    -- Max distance check
+    if distance > (Settings.Aimbot.MaxDistance or 500) then
+        return false
+    end
+    
+    -- FOV CHECK when we have a lock:
+    -- Use SCREEN CENTER (where camera points) not mouse position
+    -- This prevents unlocking when aimbot turns camera to target
+    if Settings.Aimbot.UseFOV then
+        local screenPos, onScreen, depth = Utils.WorldToScreen(rootPart.Position)
+        
+        -- Must be in front of camera
+        if depth <= 0 then
+            return false -- Target is behind camera
+        end
+        
+        -- When locked, use screen center for FOV check (camera is pointing at target)
+        -- Add generous buffer to prevent flickering
+        if onScreen then
+            local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+            local screenDist = (screenCenter - screenPos).Magnitude
+            
+            -- Use 1.5x FOV radius as buffer when already locked
+            local fovBuffer = Settings.Aimbot.FOVRadius * 1.5
+            if screenDist > fovBuffer then
+                return false
+            end
+        end
+    end
+    
+    -- Team check
+    if Settings.Aimbot.TeamCheck and Utils.IsTeammate(self.Target) then
+        return false
+    end
+    
+    -- Keep target
+    return true
+end
+        return false
+    end
+    
+    -- Team check
+    if Settings.Aimbot.TeamCheck and Utils.IsTeammate(self.Target) then
+        return false
+    end
+    
+    -- Don't switch targets while locked - KEEP CURRENT TARGET
+    -- Only drop if invalid, not for "better" targets
+    return true
+end
+
+-- Update target info cache
+function Aimbot:UpdateTargetInfo()
+    if not self.Target then
+        self.TargetInfo.Player = nil
+        return
+    end
+    
+    local player = self.Target
+    local character = player.Character
+    
+    if not character then
+        self.TargetInfo.Player = nil
+        return
+    end
+    
+    local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    
+    if not rootPart then
+        self.TargetInfo.Player = nil
+        return
+    end
+    
+    -- Update prediction engine
+    PredictionEngine:Update(player)
+    
+    -- Get predicted position
+    local predictionTime = Utils.GetPredictionTime and Utils.GetPredictionTime() or 0.1
+    local predictedPos, confidence, pattern = PredictionEngine:GetPrediction(player, predictionTime, PredictionEngine.Methods.HYBRID)
+    
+    -- Update cache
+    self.TargetInfo.Player = player
+    self.TargetInfo.Character = character
+    self.TargetInfo.RootPart = rootPart
+    self.TargetInfo.TargetPart = self:GetBestBone(character)
+    self.TargetInfo.Position = rootPart.Position
+    self.TargetInfo.PredictedPosition = predictedPos or rootPart.Position
+    self.TargetInfo.Distance = GetRootPart() and (rootPart.Position - GetRootPart().Position).Magnitude or 0
+    self.TargetInfo.Health = humanoid and humanoid.Health or 100
+    self.TargetInfo.Velocity = rootPart.Velocity
+    self.TargetInfo.ThreatLevel = self:CalculateThreatLevel(player)
+    self.TargetInfo.Visible = Utils.IsVisible(self.TargetInfo.TargetPart or rootPart)
+    
+    -- Screen position
+    local screenPos, onScreen, depth = Utils.WorldToScreen(self.TargetInfo.Position)
+    self.TargetInfo.ScreenPosition = screenPos or Vector2.new(0, 0)
+    self.TargetInfo.InFOV = onScreen and depth > 0
+end
+
+-- Simple aim calculation (stable)
+function Aimbot:CalculateAimPosition()
+    if not self.Target then return nil end
+    
+    local character = self.Target.Character
+    if not character then return nil end
+    
+    -- Get target part directly
+    local targetPart = Utils.GetPartFromBone(character, Settings.Aimbot.TargetPart)
+    if not targetPart then
+        targetPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Head")
+    end
+    if not targetPart then return nil end
+    
+    local basePosition = targetPart.Position
+    
+    -- Simple prediction if enabled
+    if Settings.Aimbot.UsePrediction then
+        local velocity = targetPart.Velocity
+        if velocity.Magnitude > 0.1 then
+            local predTime = Settings.Aimbot.Prediction or 0.1
+            local predOffset = velocity * predTime
+            
+            -- Clamp prediction to prevent wild jumps
+            if predOffset.Magnitude > 30 then
+                predOffset = predOffset.Unit * 30
+            end
+            
+            basePosition = basePosition + predOffset
+        end
+    end
+    
+    return basePosition
+end
+
+-- Simplified aim execution (removed conflicting smoothing layers)
+function Aimbot:ExecuteAim(targetPosition)
+    if not targetPosition then return end
+    
+    -- Validate target position is reasonable
+    if targetPosition.Magnitude > 10000 then
+        return -- Position is invalid/too far
+    end
+    
+    -- Execute aim based on method
+    local aimMethod = Settings.Aimbot.AimMethod or "Camera"
+    
+    if aimMethod == "Camera" then
+        self:AimCamera(targetPosition)
+    elseif aimMethod == "CameraLock" then
+        pcall(function()
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPosition)
+        end)
+    elseif aimMethod == "Mouse" then
+        self:AimMouse(targetPosition)
+    elseif aimMethod == "Silent" then
+        self:SilentAim(targetPosition)
+    else
+        self:AimCamera(targetPosition)
+    end
+end
+
+-- Create FOV Circle
+function Aimbot:CreateFOVCircle()
+    if self.FOVCircle then return end
+    
+    self.FOVCircle = Drawing.new("Circle")
+    self.FOVCircle.Visible = Settings.Aimbot.Enabled and Settings.Aimbot.FOVVisible
+    self.FOVCircle.Transparency = Settings.Aimbot.FOVTransparency
+    self.FOVCircle.Color = Settings.Aimbot.FOVColor
+    self.FOVCircle.Thickness = Settings.Aimbot.FOVThickness
+    self.FOVCircle.NumSides = Settings.Aimbot.FOVSides
+    self.FOVCircle.Radius = Settings.Aimbot.FOVRadius
+    self.FOVCircle.Filled = Settings.Aimbot.FOVFilled
+    self.FOVCircle.ZIndex = 999
+    
+    table.insert(DrawingObjects, self.FOVCircle)
+end
+
+-- Update FOV Circle
+function Aimbot:UpdateFOVCircle()
+    if not self.FOVCircle then
+        self:CreateFOVCircle()
+    end
+    
+    -- Update position to mouse
+    local mouseLocation = UserInputService:GetMouseLocation()
+    self.FOVCircle.Position = mouseLocation
+    
+    -- Update properties
+    self.FOVCircle.Radius = Settings.Aimbot.FOVRadius
+    self.FOVCircle.Color = Settings.Aimbot.FOVColor
+    self.FOVCircle.Transparency = Settings.Aimbot.FOVTransparency
+    self.FOVCircle.Thickness = Settings.Aimbot.FOVThickness
+    self.FOVCircle.Filled = Settings.Aimbot.FOVFilled
+    self.FOVCircle.NumSides = Settings.Aimbot.FOVSides
+    
+    -- Show/hide based on settings
+    local showFOV = Settings.Aimbot.Enabled and Settings.Aimbot.FOVVisible
+    if Settings.Aimbot.ShowFOVOnAim then
+        showFOV = showFOV and self:IsAiming()
+    end
+    
+    self.FOVCircle.Visible = showFOV
+end
+
+-- Create Target Line/Tracer
+function Aimbot:CreateTargetLine()
+    if self.TargetLine then return end
+    
+    self.TargetLine = Drawing.new("Line")
+    self.TargetLine.Visible = false
+    self.TargetLine.Transparency = 1
+    self.TargetLine.Color = Settings.Aimbot.TracerColor
+    self.TargetLine.Thickness = Settings.Aimbot.TracerThickness
+    self.TargetLine.ZIndex = 998
+    
+    table.insert(DrawingObjects, self.TargetLine)
+end
+
+-- Update Target Line
+function Aimbot:UpdateTargetLine()
+    if not Settings.Aimbot.TargetTracers or not self.Target then
+        if self.TargetLine then
+            self.TargetLine.Visible = false
+        end
+        return
+    end
+    
+    if not self.TargetLine then
+        self:CreateTargetLine()
+    end
+    
+    if Utils.IsPlayerAlive(self.Target) then
+        local character = self.Target.Character
+        local targetPart = Utils.GetPartFromBone(character, Settings.Aimbot.TargetPart)
+        
+        if targetPart then
+            local screenPos, onScreen = Utils.WorldToScreen(targetPart.Position)
+            
+            if onScreen then
+                local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+                
+                self.TargetLine.From = screenCenter
+                self.TargetLine.To = screenPos
+                self.TargetLine.Color = Settings.Aimbot.TracerColor
+                self.TargetLine.Thickness = Settings.Aimbot.TracerThickness
+                self.TargetLine.Visible = true
+                return
+            end
+        end
+    end
+    
+    self.TargetLine.Visible = false
+end
+
+-- Check if Aiming - Simplified like Exunys aimbot
+function Aimbot:IsAiming()
+    if not Settings.Aimbot.Enabled then return false end
+    
+    -- Simply return the Running state (set by input handlers)
+    return self.Running
+end
+
+-- Get Target Part
+function Aimbot:GetTargetPart(character)
+    if not character then return nil end
+    
+    if Settings.Aimbot.ClosestBone then
+        local bone = Utils.GetClosestBone(character)
+        if bone then return bone end
+    end
+    
+    if Settings.Aimbot.TargetPart == "Random" then
+        local parts = {"Head", "UpperTorso", "LowerTorso", "HumanoidRootPart"}
+        local randomPart = parts[random(1, #parts)]
+        return character:FindFirstChild(randomPart) or character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Head")
+    end
+    
+    local part = Utils.GetPartFromBone(character, Settings.Aimbot.TargetPart)
+    if part then return part end
+    
+    -- Fallbacks
+    return character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Head") or character:FindFirstChild("Torso")
+end
+
+-- Apply Prediction (with safety clamps to prevent wild offsets)
+function Aimbot:ApplyPrediction(targetPart)
+    if not targetPart then return Vector3.new(0, 0, 0) end
+    
+    local basePosition = targetPart.Position
+    
+    if not Settings.Aimbot.UsePrediction then
+        return basePosition
+    end
+    
+    local predictionTime = Utils.GetPredictionTime()
+    local predictedPos = Utils.PredictPosition(targetPart, predictionTime)
+    
+    -- SAFETY: Clamp prediction offset to prevent wild jumps
+    local maxPredictionOffset = 50 -- Max studs the prediction can offset from actual position
+    local predictionOffset = predictedPos - basePosition
+    if predictionOffset.Magnitude > maxPredictionOffset then
+        predictionOffset = predictionOffset.Unit * maxPredictionOffset
+        predictedPos = basePosition + predictionOffset
+    end
+    
+    -- Air shot compensation
+    if Settings.Aimbot.AirShotCompensation then
+        local humanoid = targetPart.Parent and targetPart.Parent:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            local success, state = pcall(function() return humanoid:GetState() end)
+            if success and (state == Enum.HumanoidStateType.Freefall or state == Enum.HumanoidStateType.Jumping) then
+                predictedPos = predictedPos + Vector3.new(0, math.clamp(Settings.Aimbot.JumpPrediction, -20, 20), 0)
+            end
+        end
+    end
+    
+    -- Gravity compensation (clamped)
+    if Settings.Aimbot.GravityCompensation then
+        local distance = Utils.GetDistance(Camera.CFrame.Position, predictedPos)
+        local gravity = Workspace.Gravity
+        local dropAmount = math.clamp((gravity * (distance / 1000)) / 2, -30, 30)
+        predictedPos = predictedPos + Vector3.new(0, dropAmount, 0)
+    end
+    
+    return predictedPos
+end
+
+-- Apply Shake
+function Aimbot:ApplyShake(position)
+    if not Settings.Aimbot.ShakeEnabled or Settings.Aimbot.ShakeAmount == 0 then
+        return position
+    end
+    
+    local shakeAmount = Settings.Aimbot.ShakeAmount
+    local randomOffset = Vector3.new(
+        random(-shakeAmount * 100, shakeAmount * 100) / 100,
+        random(-shakeAmount * 100, shakeAmount * 100) / 100,
+        random(-shakeAmount * 100, shakeAmount * 100) / 100
+    )
+    
+    return position + randomOffset
+end
+
+-- Smoothing Calculation
+function Aimbot:CalculateSmoothing(currentCF, targetCF, distance)
+    local smoothness = Settings.Aimbot.Smoothness
+    
+    if Settings.Aimbot.DynamicSmoothing then
+        -- Adjust smoothing based on distance
+        local maxDistance = 500
+        local distanceFactor = clamp(distance / maxDistance, 0, 1)
+        smoothness = smoothness + (distanceFactor * 0.1)
+    end
+    
+    return smoothness
+end
+
+-- Aim at Target (Camera Method) - Simplified and stable
+function Aimbot:AimCamera(targetPosition)
+    if not targetPosition then return end
+    
+    -- Disable mouse sensitivity while locked (prevents fighting the lock)
+    pcall(function()
+        UserInputService.MouseDeltaSensitivity = 0
+    end)
+    
+    -- Get current camera position
+    local camPos = Camera.CFrame.Position
+    
+    -- Calculate target CFrame
+    local targetCFrame = CFrame.new(camPos, targetPosition)
+    
+    -- Use smoothness (0 = instant, higher = slower)
+    local smoothFactor = Settings.Aimbot.UseSmoothing and Settings.Aimbot.Smoothness or 0
+    
+    if smoothFactor > 0.01 then
+        -- Smooth aim using Lerp (stable, no tween conflicts)
+        local lerpAlpha = math.clamp(1 - smoothFactor, 0.1, 1)
+        Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, lerpAlpha)
+    else
+        -- Instant lock
+        Camera.CFrame = targetCFrame
+    end
+end
+
+-- Aim at Target (Mouse Method)
+function Aimbot:AimMouse(targetPosition)
+    local screenPos, onScreen = Utils.WorldToScreen(targetPosition)
+    
+    if onScreen then
+        local currentMouse = UserInputService:GetMouseLocation()
+        local smoothness = Settings.Aimbot.Smoothness
+        
+        local lerpedX = currentMouse.X + ((screenPos.X - currentMouse.X) * (1 - Settings.Aimbot.SmoothnessX))
+        local lerpedY = currentMouse.Y + ((screenPos.Y - currentMouse.Y) * (1 - Settings.Aimbot.SmoothnessY))
+        
+        if mousemoveabs then
+            mousemoveabs(lerpedX, lerpedY)
+        elseif Input and Input.MouseMove then
+            Input.MouseMove(lerpedX, lerpedY)
+        end
+    end
+end
+
+-- Aim at Target (Silent Aim Method)
+function Aimbot:SilentAim(targetPosition)
+    -- This would hook into the game's shooting mechanism
+    -- Implementation varies by game
+    -- Typically involves hooking __namecall or remote events
+    
+    self.SilentAimPosition = targetPosition
+    
+    -- Example hook (game-specific):
+    --[[
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod()
+        local args = {...}
+        
+        if method == "FireServer" and self.Name == "ShootEvent" then
+            if Settings.Aimbot.SilentAim and Aimbot.SilentAimPosition then
+                -- Modify the position argument
+                args[1] = Aimbot.SilentAimPosition
+            end
+        end
+        
+        return oldNamecall(self, unpack(args))
+    end)
+    ]]
+end
+
+-- Restore mouse sensitivity (called when stopping aim)
+function Aimbot:RestoreSensitivity()
+    pcall(function()
+        UserInputService.MouseDeltaSensitivity = self.OriginalSensitivity
+    end)
+end
+
+-- Store original sensitivity on first run
+function Aimbot:StoreOriginalSensitivity()
+    if self.OriginalSensitivity == 1 then
+        pcall(function()
+            self.OriginalSensitivity = UserInputService.MouseDeltaSensitivity
+        end)
+    end
+end
+
+-- Main Aim Function
+function Aimbot:Aim(targetPart)
+    if not targetPart then return end
+    
+    -- Get predicted position (with safety)
+    local targetPosition = self:ApplyPrediction(targetPart)
+    
+    -- Sanity check: if prediction returned zero or invalid, use raw position
+    if not targetPosition or targetPosition.Magnitude == 0 then
+        targetPosition = targetPart.Position
+    end
+    
+    -- Sanity check: ensure target is not too far (prediction gone wild)
+    local distToTarget = (targetPosition - Camera.CFrame.Position).Magnitude
+    if distToTarget > Settings.Aimbot.MaxDistance * 2 then
+        targetPosition = targetPart.Position -- Fall back to raw position
+    end
+    
+    -- Apply shake (small amounts only)
+    if Settings.Aimbot.ShakeEnabled then
+        targetPosition = self:ApplyShake(targetPosition)
+    end
+    
+    -- Apply humanization (clamped)
+    if Settings.Aimbot.Humanize then
+        local humanizeAmt = math.clamp(Settings.Aimbot.HumanizeAmount, 0, 5)
+        local offset = Vector3.new(
+            random(-100, 100) / 1000 * humanizeAmt,
+            random(-100, 100) / 1000 * humanizeAmt,
+            random(-100, 100) / 1000 * humanizeAmt
+        )
+        targetPosition = targetPosition + offset
+    end
+    
+    -- Apply random offset for anti-detection (clamped)
+    if Settings.Aimbot.RandomOffset then
+        local offsetAmt = math.clamp(Settings.Aimbot.OffsetAmount, 0, 3)
+        local offset = Vector3.new(
+            random(-100, 100) / 100 * offsetAmt,
+            random(-100, 100) / 100 * offsetAmt,
+            random(-100, 100) / 100 * offsetAmt
+        )
+        targetPosition = targetPosition + offset
+    end
+    
+    -- Check miss chance
+    if Settings.Aimbot.MissChance > 0 then
+        if random(1, 100) <= Settings.Aimbot.MissChance then
+            return -- Intentionally miss
+        end
+    end
+    
+    -- Aim using selected method
+    if Settings.Aimbot.AimMethod == "Camera" then
+        self:AimCamera(targetPosition)
+    elseif Settings.Aimbot.AimMethod == "Mouse" then
+        self:AimMouse(targetPosition)
+    elseif Settings.Aimbot.AimMethod == "Silent" then
+        self:SilentAim(targetPosition)
+    elseif Settings.Aimbot.AimMethod == "CameraLock" then
+        pcall(function()
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPosition)
+        end)
+    else
+        -- Default to Camera method
+        self:AimCamera(targetPosition)
+    end
+end
+
+-- Get Target
+function Aimbot:GetTarget()
+    -- Build valid targets list with all filters applied
+    local validTargets = {}
+    local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+    local rootPart = GetRootPart()
+    
+    for _, player in pairs(Utils.GetAllPlayers()) do
+        if player == LocalPlayer then continue end
+        if not Utils.IsPlayerAlive(player) then continue end
+        
+        local character = player.Character
+        if not character then continue end
+        
+        local targetRoot = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")
+        if not targetRoot then continue end
+        
+        -- Whitelist mode
+        if Settings.Aimbot.WhitelistMode then
+            if not table.find(Settings.Aimbot.Whitelist, player.Name) then
+                continue
+            end
+        else
+            -- Blacklist check
+            if table.find(Settings.Aimbot.Blacklist, player.Name) then
+                continue
+            end
+        end
+        
+        -- Team check
+        if Settings.Aimbot.IgnoreTeammates and Utils.IsTeammate(player) then
+            continue
+        end
+        
+        -- Friend check
+        if Settings.Aimbot.IgnoreFriends and Utils.IsFriend(player) then
+            continue
+        end
+        
+        -- Distance check
+        local distance = rootPart and Utils.GetDistance(rootPart.Position, targetRoot.Position) or huge
+        if distance > Settings.Aimbot.MaxDistance then
+            continue
+        end
+        
+        -- Visible check
+        if Settings.Aimbot.VisibleCheck then
+            local targetPart = character:FindFirstChild(Settings.Aimbot.TargetPart) or targetRoot
+            if not Utils.IsVisible(targetPart) then
+                continue
+            end
+        end
+        
+        -- Store player with screen distance for FOV sorting
+        local screenPos, onScreen, depth = Utils.WorldToScreen(targetRoot.Position)
+        -- Only require depth > 0 (in front of camera), not necessarily on screen
+        if depth and depth > 0 then
+            local screenDist = onScreen and (mousePos - screenPos).Magnitude or 9999
+            table.insert(validTargets, {
+                Player = player,
+                ScreenDistance = screenDist,
+                WorldDistance = distance,
+                OnScreen = onScreen
+            })
+        end
+    end
+    
+    -- No valid targets
+    if #validTargets == 0 then return nil end
+    
+    -- Sort and find closest based on method
+    if Settings.Aimbot.UseFOV then
+        -- Sort by screen distance (FOV based)
+        table.sort(validTargets, function(a, b)
+            return a.ScreenDistance < b.ScreenDistance
+        end)
+        -- Check FOV radius (only if on screen)
+        local closest = validTargets[1]
+        if closest.OnScreen and closest.ScreenDistance <= Settings.Aimbot.FOVRadius then
+            return closest.Player
+        end
+        -- If none in FOV but we have targets, return closest anyway for sticky aim
+        if not Settings.Aimbot.UseFOV then
+            return closest.Player
+        end
+    else
+        -- Sort by world distance
+        table.sort(validTargets, function(a, b)
+            return a.WorldDistance < b.WorldDistance
+        end)
+        return validTargets[1].Player
+    end
+    
+    return nil
+end
+
+-- Resolver (Anti-Desync)
+function Aimbot:ResolveTarget(player)
+    if not Settings.Aimbot.Resolver then return end
+    
+    local character = player.Character
+    if not character then return end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then return end
+    
+    if Settings.Aimbot.ResolverMethod == "Delta" then
+        -- Delta resolver - tracks velocity changes
+        local currentVel = Utils.GetVelocity(humanoidRootPart)
+        local lastVel = self.Predictions[player] or currentVel
+        local delta = currentVel - lastVel
+        
+        self.Predictions[player] = currentVel
+        
+        -- If velocity delta is too high, it might be fake
+        if delta.Magnitude > 30 then
+            return lastVel -- Use previous velocity
+        end
+        
+    elseif Settings.Aimbot.ResolverMethod == "Velocity" then
+        -- Simple velocity-based resolver
+        local velocity = Utils.GetVelocity(humanoidRootPart)
+        
+        -- If velocity is unrealistically high, ignore it
+        if velocity.Magnitude > 100 then
+            return Vector3.new(0, 0, 0)
+        end
+        
+    elseif Settings.Aimbot.ResolverMethod == "Advanced" then
+        -- Advanced resolver with multiple checks
+        local rootPart = humanoidRootPart
+        local velocity = Utils.GetVelocity(rootPart)
+        local position = rootPart.Position
+        
+        -- Store history
+        if not self.Predictions[player] then
+            self.Predictions[player] = {
+                Positions = {},
+                Velocities = {},
+            }
+        end
+        
+        local history = self.Predictions[player]
+        table.insert(history.Positions, position)
+        table.insert(history.Velocities, velocity)
+        
+        -- Keep only last 10 entries
+        if #history.Positions > 10 then
+            table.remove(history.Positions, 1)
+            table.remove(history.Velocities, 1)
+        end
+        
+        -- Calculate average velocity
+        local avgVelocity = Vector3.new(0, 0, 0)
+        for _, vel in pairs(history.Velocities) do
+            avgVelocity = avgVelocity + vel
+        end
+        avgVelocity = avgVelocity / #history.Velocities
+        
+        -- Use average if current velocity is too different
+        if (velocity - avgVelocity).Magnitude > 20 then
+            rootPart.AssemblyLinearVelocity = avgVelocity
+        end
+    end
+end
+
+-- Trigger Bot State (Advanced)
+Aimbot.TriggerState = {
+    LastFireTime = 0,
+    FireCooldown = 0.08,
+    IsHoldingFire = false,
+    TargetLostTime = 0,
+    ConsecutiveHits = 0,
+    LastTargetPlayer = nil,
+    ConfirmationFrames = 0,
+    RequiredConfirmations = 2,
+    LastValidTarget = nil,
+    FailedAttempts = 0,
+}
+
+-- Multi-method crosshair target detection for TriggerBot
+function Aimbot:GetCrosshairTarget()
+    local camera = Camera
+    if not camera then return nil end
+    
+    local viewportSize = camera.ViewportSize
+    local crosshairPos = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+    
+    -- Raycast parameters
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    rayParams.FilterDescendantsInstances = {LocalPlayer.Character}
+    rayParams.IgnoreWater = true
+    
+    -- Method 1: Direct raycast from camera center
+    local unitRay = camera:ViewportPointToRay(crosshairPos.X, crosshairPos.Y)
+    local rayResult = Workspace:Raycast(unitRay.Origin, unitRay.Direction * 1000, rayParams)
+    
+    local function GetPlayerFromHit(hitPart)
+        if not hitPart then return nil end
+        
+        -- Check direct parent
+        local character = hitPart.Parent
+        if character then
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                local player = Players:GetPlayerFromCharacter(character)
+                if player and player ~= LocalPlayer then
+                    return player, hitPart
+                end
+            end
+            
+            -- Check grandparent (accessories)
+            if character.Parent then
+                local grandParent = character.Parent
+                humanoid = grandParent:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    local player = Players:GetPlayerFromCharacter(grandParent)
+                    if player and player ~= LocalPlayer then
+                        return player, hitPart
+                    end
+                end
+            end
+        end
+        return nil
+    end
+    
+    -- Check primary raycast
+    if rayResult and rayResult.Instance then
+        local player, part = GetPlayerFromHit(rayResult.Instance)
+        if player then
+            return player, part, rayResult.Position, "raycast"
+        end
+    end
+    
+    -- Method 2: Mouse.Target (backup)
+    local mouseTarget = Mouse.Target
+    if mouseTarget then
+        local player, part = GetPlayerFromHit(mouseTarget)
+        if player then
+            return player, part, mouseTarget.Position, "mouse"
+        end
+    end
+    
+    -- Method 3: Check all players near crosshair (cone check)
+    local bestPlayer = nil
+    local bestDist = 50 -- Max pixel distance from crosshair
+    
+    for _, player in pairs(Utils.GetAllPlayers()) do
+        if player ~= LocalPlayer and Utils.IsPlayerAlive(player) then
+            local character = player.Character
+            if character then
+                local head = character:FindFirstChild("Head")
+                local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
+                
+                -- Check both head and torso
+                for _, part in pairs({head, torso}) do
+                    if part then
+                        local screenPos, onScreen, depth = Utils.WorldToScreen(part.Position)
+                        if onScreen and depth > 0 then
+                            local dist = (Vector2.new(screenPos.X, screenPos.Y) - crosshairPos).Magnitude
+                            if dist < bestDist then
+                                bestDist = dist
+                                bestPlayer = player
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    if bestPlayer then
+        return bestPlayer, nil, nil, "proximity"
+    end
+    
+    return nil
+end
+
+-- Advanced TriggerBot with multi-method detection and reliability improvements
+function Aimbot:TriggerBot()
+    if not Settings.Aimbot.TriggerBot then return end
+    
+    local currentTime = tick()
+    local cooldown = Settings.Aimbot.TriggerCooldown or 0.08
+    
+    -- Cooldown check
+    if currentTime - self.TriggerState.LastFireTime < cooldown then
+        return
+    end
+    
+    -- Get target using multiple methods
+    local targetPlayer, hitPart, hitPos, method = self:GetCrosshairTarget()
+    
+    -- If TriggerOnlyOnTarget is enabled, only shoot at aimbot's locked target
+    if Settings.Aimbot.TriggerOnlyOnTarget and self.Target then
+        if targetPlayer ~= self.Target then
+            targetPlayer = nil
+        end
+    end
+    
+    -- No target found
+    if not targetPlayer then
+        self.TriggerState.ConfirmationFrames = 0
+        self.TriggerState.LastValidTarget = nil
+        self.TriggerState.ConsecutiveHits = 0
+        return
+    end
+    
+    -- Validation checks
+    if not Utils.IsPlayerAlive(targetPlayer) then return end
+    
+    -- Team check
+    if Settings.Aimbot.TeamCheck and Utils.IsTeammate(targetPlayer) then return end
+    
+    -- Friend check  
+    if Settings.Aimbot.IgnoreFriends and Utils.IsFriend(targetPlayer) then return end
+    
+    -- Distance check
+    local character = targetPlayer.Character
+    if character then
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        if rootPart then
+            local localRoot = GetRootPart()
+            if localRoot then
+                local distance = (rootPart.Position - localRoot.Position).Magnitude
+                local maxDist = Settings.Aimbot.TriggerMaxDistance or 500
+                if distance > maxDist then return end
+            end
+        end
+    end
+    
+    -- FOV Check for TriggerBot
+    if Settings.Aimbot.UseFOV then
+        if character then
+            local rootPart = character:FindFirstChild("HumanoidRootPart")
+            if rootPart then
+                local screenPos, onScreen, depth = Utils.WorldToScreen(rootPart.Position)
+                if not onScreen or depth <= 0 then return end
+                
+                local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+                local screenDist = (mousePos - screenPos).Magnitude
+                if screenDist > Settings.Aimbot.FOVRadius then return end
+            end
+        end
+    end
+    
+    -- Visibility check
+    if Settings.Aimbot.TriggerRequireVisible then
+        if character then
+            local targetPart = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+            if targetPart and not Utils.IsVisible(targetPart) then
+                return
+            end
+        end
+    end
+    
+    -- Confirmation system - require target to be valid for multiple frames
+    if self.TriggerState.LastValidTarget == targetPlayer then
+        self.TriggerState.ConfirmationFrames = self.TriggerState.ConfirmationFrames + 1
+    else
+        self.TriggerState.LastValidTarget = targetPlayer
+        self.TriggerState.ConfirmationFrames = 1
+    end
+    
+    -- Wait for confirmation
+    if self.TriggerState.ConfirmationFrames < self.TriggerState.RequiredConfirmations then
+        return
+    end
+    
+    -- Hit chance check
+    local hitChance = Settings.Aimbot.TriggerHitChance or 100
+    if hitChance < 100 then
+        if math.random(1, 100) > hitChance then
+            self.TriggerState.FailedAttempts = self.TriggerState.FailedAttempts + 1
+            return
+        end
+    end
+    
+    -- Apply trigger delay (reaction time)
+    local triggerDelay = Settings.Aimbot.TriggerDelay or 0.05
+    if self.TriggerState.ConsecutiveHits == 0 then
+        task.wait(triggerDelay)
+        
+        -- Re-validate target after delay
+        local recheck = self:GetCrosshairTarget()
+        if not recheck then return end
+    end
+    
+    -- Update state
+    self.TriggerState.LastFireTime = tick()
+    self.TriggerState.ConsecutiveHits = self.TriggerState.ConsecutiveHits + 1
+    self.TriggerState.FailedAttempts = 0
+    
+    -- Calculate hold time
+    local holdTime = Settings.Aimbot.TriggerHoldTime or 0.02
+    
+    -- Fire!
+    if Settings.Aimbot.BurstMode then
+        local burstCount = Settings.Aimbot.BurstCount or 3
+        local burstDelay = Settings.Aimbot.BurstDelay or 0.05
+        
+        for i = 1, burstCount do
+            mouse1press()
+            task.wait(holdTime)
+            mouse1release()
+            if i < burstCount then
+                task.wait(burstDelay)
+            end
+        end
+    else
+        -- Single shot with proper hold
+        mouse1press()
+        task.wait(holdTime)
+        mouse1release()
+    end
+end
+
+-- Auto Shoot Function
+function Aimbot:AutoShoot()
+    if not Settings.Aimbot.AutoShoot then return end
+    if not self.Target or not self.Locked then return end
+    
+    if Settings.Aimbot.OnlyWhenAiming and not self:IsAiming() then return end
+    
+    task.wait(Settings.Aimbot.AutoShootDelay)
+    
+    mouse1press()
+    task.wait(0.01)
+    mouse1release()
+end
+
+-- Main Update Loop (Advanced)
+function Aimbot:Update()
+    -- Track frame timing
+    local currentTime = tick()
+    self.UpdateDelta = currentTime - self.LastUpdateTime
+    self.FrameCount = self.FrameCount + 1
+    
+    -- Update FOV Circle
+    self:UpdateFOVCircle()
+    
+    -- Update Target Line
+    self:UpdateTargetLine()
+    
+    if not Settings.Aimbot.Enabled then
+        self.Target = nil
+        self.Locked = false
+        self:RestoreSensitivity()
+        return
+    end
+    
+    -- Check if aiming
+    local isAiming = self:IsAiming()
+    
+    -- If not aiming, restore sensitivity and clear target
+    if not isAiming then
+        self.Target = nil
+        self.Locked = false
+        self:RestoreSensitivity()
+        self.SmoothedAimPosition = Vector3.new(0, 0, 0)
+        return
+    end
+    
+    -- ADVANCED TARGET ACQUISITION
+    -- Use the new scoring and persistence system
+    if self:ShouldKeepTarget() then
+        -- Keep current target - update prediction data
+        if self.Target then
+            PredictionEngine:Update(self.Target)
+        end
+    else
+        -- Select new target using advanced scoring
+        local newTarget, score = self:SelectBestTarget()
+        
+        if newTarget and newTarget ~= self.Target then
+            self.Target = newTarget
+            self.LockTime = tick()
+            self.LastTarget = newTarget
+            self.SmoothedAimPosition = Vector3.new(0, 0, 0) -- Reset smooth position
+            
+            if Settings.Aimbot.ShowNotifications and Settings.Aimbot.TargetNotifications then
+                Utils.Notify("Aimbot", "Locked onto " .. newTarget.Name .. " (Score: " .. math.floor(score) .. ")", 1)
+            end
+        elseif not newTarget then
+            self.Target = nil
+        end
+    end
+    
+    -- No valid target found
+    if not self.Target or not Utils.IsPlayerAlive(self.Target) then
+        self.Locked = false
+        self.Target = nil
+        return
+    end
+    
+    -- Update target info cache (includes prediction update)
+    self:UpdateTargetInfo()
+    
+    -- Verify target is still valid after info update
+    if not self.TargetInfo.Player then
+        self.Locked = false
+        return
+    end
+    
+    -- Calculate aim position using advanced system
+    local aimPosition = self:CalculateAimPosition()
+    
+    if not aimPosition then
+        -- Fallback to direct targeting
+        local targetPart = self.TargetInfo.TargetPart or self.Target.Character:FindFirstChild("HumanoidRootPart")
+        if targetPart then
+            aimPosition = targetPart.Position
+        else
+            return
+        end
+    end
+    
+    -- Execute advanced aim
+    self:ExecuteAim(aimPosition)
+    self.Locked = true
+    
+    -- Auto shoot
+    self:AutoShoot()
+end
+
+-- Toggle Aimbot
+function Aimbot:Toggle()
+    Settings.Aimbot.Enabled = not Settings.Aimbot.Enabled
+    Utils.Notify("Aimbot", Settings.Aimbot.Enabled and "Enabled" or "Disabled", 2)
+end
+
+-- Store original sensitivity at start
+Aimbot:StoreOriginalSensitivity()
+
+-- Helper function to check if input matches aim key
+local function IsAimKeyInput(input)
+    -- Try to get aim key from UI options first
+    if type(Options) == "table" and Options.AimKey then
+        local aimKeyEnum = Options.AimKey.Value
+        if typeof(aimKeyEnum) == "EnumItem" then
+            if aimKeyEnum.EnumType == Enum.KeyCode then
+                return input.KeyCode == aimKeyEnum
+            elseif aimKeyEnum.EnumType == Enum.UserInputType then
+                return input.UserInputType == aimKeyEnum
+            end
+        end
+    end
+    
+    -- Default: check for MB2 (most common aim key)
+    return input.UserInputType == Enum.UserInputType.MouseButton2
+end
+
+-- Get activation mode helper
+local function GetActivationMode()
+    if type(Options) == "table" and Options.AimActivation then
+        return Options.AimActivation.Value
+    elseif Settings.Aimbot.ToggleMode then
+        return "Toggle"
+    end
+    return "Hold"
+end
+
+-- Input Began Handler - Sets Running to true
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if not Settings.Aimbot.Enabled then return end
+    
+    if not IsAimKeyInput(input) then return end
+    
+    local activationMode = GetActivationMode()
+    
+    if activationMode == "Always On" then
+        -- Always running when enabled
+        Aimbot.Running = true
+    elseif activationMode == "Toggle" then
+        -- Toggle mode - flip Running state
+        Aimbot.Running = not Aimbot.Running
+        
+        if not Aimbot.Running then
+            Aimbot.Target = nil
+            Aimbot.Locked = false
+            Aimbot:RestoreSensitivity()
+        end
+        
+        if Settings.Aimbot.LockOnNotify then
+            Utils.Notify("Aimbot", Aimbot.Running and "Locked On" or "Unlocked", 1)
+        end
+    else
+        -- Hold mode - start running
+        Aimbot.Running = true
+    end
+end)
+
+-- Input Ended Handler - Sets Running to false (Hold mode only)
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+    if not Settings.Aimbot.Enabled then return end
+    
+    if not IsAimKeyInput(input) then return end
+    
+    local activationMode = GetActivationMode()
+    
+    -- Only stop in Hold mode when key is released
+    if activationMode == "Hold" then
+        Aimbot.Running = false
+        Aimbot.Target = nil
+        Aimbot.Locked = false
+        Aimbot:RestoreSensitivity()
+    end
+end)
+
+-- Aimbot Render Loop
+table.insert(Connections, RunService.RenderStepped:Connect(function()
+    -- Store sensitivity on first frame
+    Aimbot:StoreOriginalSensitivity()
+    
+    -- In "Always On" mode, keep Running true when enabled
+    local activationMode = GetActivationMode()
+    if activationMode == "Always On" and Settings.Aimbot.Enabled then
+        Aimbot.Running = true
+    end
+    
+    Aimbot:Update()
+end))
+
+-- Trigger Bot Loop
+table.insert(Connections, RunService.Heartbeat:Connect(function()
+    Aimbot:TriggerBot()
+end))
+
+print("Aimbot System Loaded")
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SECTION 5: ADVANCED ESP SYSTEM (Lines 1801-2700)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+print("Loading ESP System...")
+
+local ESP = {
+    Players = {},
+    DrawingCache = {},
+    UpdateRate = 0,
+}
+
+-- Create ESP Object for Player
+function ESP:CreateESP(player)
+    if self.Players[player] then return end
+    
+    local drawings = {
+        -- Box
+        Box = Drawing.new("Square"),
+        BoxOutline = Drawing.new("Square"),
+        
+        -- Tracer
+        Tracer = Drawing.new("Line"),
+        
+        -- Text Elements
+        Name = Drawing.new("Text"),
+        Distance = Drawing.new("Text"),
+        Health = Drawing.new("Text"),
+        Weapon = Drawing.new("Text"),
+        Flags = Drawing.new("Text"),
+        
+        -- Health Bar
+        HealthBar = Drawing.new("Square"),
+        HealthBarOutline = Drawing.new("Square"),
+        HealthBarBackground = Drawing.new("Square"),
+        
+        -- Skeleton
+        Skeleton = {},
+        
+        -- Out of View Arrow (Advanced)
+        Arrow = Drawing.new("Triangle"),
+        ArrowOutline = Drawing.new("Triangle"),
+        ArrowDistance = Drawing.new("Text"),
+    }
+    
+    -- Initialize Box
+    drawings.Box.Thickness = Settings.ESP.BoxThickness
+    drawings.Box.Filled = Settings.ESP.BoxFilled
+    drawings.Box.Transparency = Settings.ESP.BoxTransparency
+    drawings.Box.ZIndex = 2
+    drawings.Box.Visible = false
+    
+    drawings.BoxOutline.Thickness = Settings.ESP.BoxThickness + 1
+    drawings.BoxOutline.Filled = false
+    drawings.BoxOutline.Color = Color3.new(0, 0, 0)
+    drawings.BoxOutline.Transparency = Settings.ESP.BoxTransparency
+    drawings.BoxOutline.ZIndex = 1
+    drawings.BoxOutline.Visible = false
+    
+    -- Initialize Tracer
+    drawings.Tracer.Thickness = Settings.ESP.TracerThickness
+    drawings.Tracer.Transparency = Settings.ESP.TracerTransparency
+    drawings.Tracer.ZIndex = 1
+    drawings.Tracer.Visible = false
+    
+    -- Initialize Name
+    drawings.Name.Size = Settings.ESP.NameSize
+    drawings.Name.Font = Settings.ESP.NameFont
+    drawings.Name.Center = true
+    drawings.Name.Outline = Settings.ESP.NameOutline
+    drawings.Name.OutlineColor = Settings.ESP.OutlineColor
+    drawings.Name.ZIndex = 3
+    drawings.Name.Visible = false
+    
+    -- Initialize Distance
+    drawings.Distance.Size = Settings.ESP.DistanceSize
+    drawings.Distance.Font = Settings.ESP.DistanceFont
+    drawings.Distance.Center = true
+    drawings.Distance.Outline = Settings.ESP.DistanceOutline
+    drawings.Distance.OutlineColor = Settings.ESP.OutlineColor
+    drawings.Distance.ZIndex = 3
+    drawings.Distance.Visible = false
+    
+    -- Initialize Health
+    drawings.Health.Size = Settings.ESP.HealthTextSize
+    drawings.Health.Font = 2
+    drawings.Health.Center = true
+    drawings.Health.Outline = true
+    drawings.Health.OutlineColor = Color3.new(0, 0, 0)
+    drawings.Health.ZIndex = 3
+    drawings.Health.Visible = false
+    
+    -- Initialize Weapon
+    drawings.Weapon.Size = Settings.ESP.WeaponSize
+    drawings.Weapon.Font = Settings.ESP.WeaponFont
+    drawings.Weapon.Center = true
+    drawings.Weapon.Outline = Settings.ESP.WeaponOutline
+    drawings.Weapon.OutlineColor = Color3.new(0, 0, 0)
+    drawings.Weapon.ZIndex = 3
+    drawings.Weapon.Visible = false
+    
+    -- Initialize Flags
+    drawings.Flags.Size = Settings.ESP.FlagSize
+    drawings.Flags.Font = Settings.ESP.FlagFont
+    drawings.Flags.Center = false
+    drawings.Flags.Outline = true
+    drawings.Flags.OutlineColor = Color3.new(0, 0, 0)
+    drawings.Flags.ZIndex = 3
+    drawings.Flags.Visible = false
+    
+    -- Initialize Health Bar
+    drawings.HealthBar.Filled = true
+    drawings.HealthBar.Thickness = 1
+    drawings.HealthBar.ZIndex = 4
+    drawings.HealthBar.Visible = false
+    
+    drawings.HealthBarOutline.Filled = false
+    drawings.HealthBarOutline.Thickness = 1
+    drawings.HealthBarOutline.Color = Color3.new(0, 0, 0)
+    drawings.HealthBarOutline.ZIndex = 3
+    drawings.HealthBarOutline.Visible = false
+    
+    drawings.HealthBarBackground.Filled = true
+    drawings.HealthBarBackground.Color = Color3.new(0.1, 0.1, 0.1)
+    drawings.HealthBarBackground.Transparency = 0.5
+    drawings.HealthBarBackground.ZIndex = 2
+    drawings.HealthBarBackground.Visible = false
+    
+    -- Initialize Skeleton Lines
+    local skeletonParts = {
+        "Head_Neck",
+        "Neck_UpperTorso",
+        "UpperTorso_LowerTorso",
+        "Neck_LeftShoulder",
+        "LeftShoulder_LeftUpperArm",
+        "LeftUpperArm_LeftLowerArm",
+        "LeftLowerArm_LeftHand",
+        "Neck_RightShoulder",
+        "RightShoulder_RightUpperArm",
+        "RightUpperArm_RightLowerArm",
+        "RightLowerArm_RightHand",
+        "LowerTorso_LeftUpperLeg",
+        "LeftUpperLeg_LeftLowerLeg",
+        "LeftLowerLeg_LeftFoot",
+        "LowerTorso_RightUpperLeg",
+        "RightUpperLeg_RightLowerLeg",
+        "RightLowerLeg_RightFoot",
+    }
+    
+    for _, partName in pairs(skeletonParts) do
+        local line = Drawing.new("Line")
+        line.Thickness = Settings.ESP.SkeletonThickness
+        line.Transparency = Settings.ESP.SkeletonTransparency
+        line.Color = Settings.ESP.SkeletonColor
+        line.ZIndex = 1
+        line.Visible = false
+        
+        drawings.Skeleton[partName] = line
+    end
+    
+    -- Initialize Arrow
+    drawings.Arrow.Filled = true
+    drawings.Arrow.Transparency = Settings.ESP.ArrowTransparency
+    drawings.Arrow.Color = Settings.ESP.ArrowColor
+    drawings.Arrow.ZIndex = 10
+    drawings.Arrow.Visible = false
+    
+    -- Initialize Arrow Outline
+    drawings.ArrowOutline.Filled = true
+    drawings.ArrowOutline.Transparency = Settings.ESP.ArrowTransparency
+    drawings.ArrowOutline.Color = Settings.ESP.ArrowOutlineColor or Color3.fromRGB(0, 0, 0)
+    drawings.ArrowOutline.ZIndex = 9
+    drawings.ArrowOutline.Visible = false
+    
+    -- Initialize Arrow Distance Text
+    drawings.ArrowDistance.Size = 13
+    drawings.ArrowDistance.Font = 2
+    drawings.ArrowDistance.Center = true
+    drawings.ArrowDistance.Outline = true
+    drawings.ArrowDistance.OutlineColor = Color3.fromRGB(0, 0, 0)
+    drawings.ArrowDistance.Color = Settings.ESP.ArrowDistanceColor or Color3.fromRGB(255, 255, 255)
+    drawings.ArrowDistance.ZIndex = 11
+    drawings.ArrowDistance.Visible = false
+    
+    -- Store
+    self.Players[player] = {
+        Drawings = drawings,
+        LastUpdate = 0,
+    }
+end
+
+-- Remove ESP
+function ESP:RemoveESP(player)
+    local espData = self.Players[player]
+    if not espData then return end
+    
+    -- Remove all drawings
+    for _, drawing in pairs(espData.Drawings) do
+        if type(drawing) == "table" then
+            for _, subDrawing in pairs(drawing) do
+                if subDrawing.Remove then
+                    subDrawing:Remove()
+                end
+            end
+        else
+            if drawing.Remove then
+                drawing:Remove()
+            end
+        end
+    end
+    
+    self.Players[player] = nil
+end
+
+-- Get ESP Color
+function ESP:GetColor(player)
+    -- Team colored
+    if Settings.ESP.TeamColoredBoxes and player.Team then
+        return player.TeamColor.Color
+    end
+    
+    -- Friend color
+    if Utils.IsFriend(player) then
+        return Settings.ESP.FriendColor
+    end
+    
+    -- Team vs enemy
+    if Utils.IsTeammate(player) then
+        return Settings.ESP.TeamColor
+    else
+        return Settings.ESP.EnemyColor
+    end
+end
+
+-- Update ESP for Player
+function ESP:UpdateESP(player)
+    if not self.Players[player] then
+        self:CreateESP(player)
+    end
+    
+    local espData = self.Players[player]
+    local drawings = espData.Drawings
+    
+    -- Check if should show
+    if not Settings.ESP.Enabled then
+        self:HideESP(player)
+        return
+    end
+    
+    if player == LocalPlayer and not Settings.ESP.ShowSelf then
+        self:HideESP(player)
+        return
+    end
+    
+    if not Utils.IsPlayerAlive(player) and Settings.ESP.AliveOnly then
+        self:HideESP(player)
+        return
+    end
+    
+    if Settings.ESP.Teamcheck and Utils.IsTeammate(player) and not Settings.ESP.ShowTeammates then
+        self:HideESP(player)
+        return
+    end
+    
+    local character = player.Character
+    if not character then
+        self:HideESP(player)
+        return
+    end
+    
+    local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local head = character:FindFirstChild("Head")
+    
+    if not rootPart or not humanoid then
+        self:HideESP(player)
+        return
+    end
+    
+    -- Distance check
+    local myRoot = GetRootPart()
+    if myRoot then
+        local distance = Utils.GetDistance(myRoot.Position, rootPart.Position)
+        
+        if distance > Settings.ESP.MaxDistance then
+            self:HideESP(player)
+            return
+        end
+    end
+    
+    -- Get screen positions
+    local rootPos, rootOnScreen = Utils.WorldToScreenPoint(rootPart.Position)
+    local rootDepth = rootPos and rootPos.Z or 0
+    
+    -- Handle out of view
+    if not rootOnScreen or rootDepth <= 0 then
+        self:HandleOutOfView(player, rootPos)
+        self:HideMainESP(player)
+        return
+    else
+        drawings.Arrow.Visible = false
+    end
+    
+    -- Calculate box dimensions
+    local headPosRaw = head and Utils.WorldToScreenPoint(head.Position + Vector3.new(0, head.Size.Y / 2, 0))
+    local leg = character:FindFirstChild("LeftFoot") or character:FindFirstChild("LeftLowerLeg") or rootPart
+    local legPosRaw = Utils.WorldToScreenPoint(leg.Position - Vector3.new(0, leg.Size.Y / 2, 0))
+    
+    if not headPosRaw or not legPosRaw then
+        self:HideESP(player)
+        return
+    end
+    
+    local headPos = headPosRaw
+    local legPos = legPosRaw
+    
+    local boxHeight = abs(headPos.Y - legPos.Y)
+    local boxWidth = boxHeight * 0.65 -- Wider box (was 0.5)
+    
+    -- SMOOTH INTERPOLATION: Apply smooth positioning to prevent jitter
+    local playerKey = tostring(player.UserId)
+    local rawBoxPos = Vector2.new(rootPos.X - boxWidth / 2, rootPos.Y - boxHeight / 2)
+    local smoothBoxPos = Utils.SmoothVector2(playerKey .. "_box", rawBoxPos, 0.35)
+    local smoothBoxSize = Vector2.new(
+        Utils.SmoothNumber(playerKey .. "_boxW", boxWidth, 0.4),
+        Utils.SmoothNumber(playerKey .. "_boxH", boxHeight, 0.4)
+    )
+    
+    local boxX = smoothBoxPos.X
+    local boxY = smoothBoxPos.Y
+    boxWidth = smoothBoxSize.X
+    boxHeight = smoothBoxSize.Y
+    
+    -- Smooth root position for tracers
+    local smoothRootPos = Utils.SmoothVector2(playerKey .. "_root", Vector2.new(rootPos.X, rootPos.Y), 0.3)
+    
+    -- Get color
+    local espColor = self:GetColor(player)
+    
+    -- Update Box
+    if Settings.ESP.Boxes then
+        drawings.Box.Size = Vector2.new(boxWidth, boxHeight)
+        drawings.Box.Position = Vector2.new(boxX, boxY)
+        drawings.Box.Color = espColor
+        drawings.Box.Filled = Settings.ESP.BoxFilled
+        drawings.Box.Transparency = Settings.ESP.BoxFilled and Settings.ESP.FilledTransparency or Settings.ESP.BoxTransparency
+        drawings.Box.Visible = true
+        
+        drawings.BoxOutline.Size = drawings.Box.Size
+        drawings.BoxOutline.Position = drawings.Box.Position
+        drawings.BoxOutline.Visible = true
+    else
+        drawings.Box.Visible = false
+        drawings.BoxOutline.Visible = false
+    end
+    
+    -- Update Tracer (SMOOTH)
+    if Settings.ESP.Tracers then
+        local tracerFrom
+        local viewportSize = Camera.ViewportSize
+        
+        if Settings.ESP.TracerOrigin == "Bottom" then
+            tracerFrom = Vector2.new(viewportSize.X / 2, viewportSize.Y)
+        elseif Settings.ESP.TracerOrigin == "Center" then
+            tracerFrom = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+        elseif Settings.ESP.TracerOrigin == "Top" then
+            tracerFrom = Vector2.new(viewportSize.X / 2, 0)
+        elseif Settings.ESP.TracerOrigin == "Mouse" then
+            tracerFrom = UserInputService:GetMouseLocation()
+        end
+        
+        -- Use smooth root position for tracer endpoint
+        local smoothTracerTo = Utils.SmoothVector2(playerKey .. "_tracer", Vector2.new(smoothRootPos.X, boxY + boxHeight), 0.25)
+        
+        drawings.Tracer.From = tracerFrom
+        drawings.Tracer.To = smoothTracerTo
+        drawings.Tracer.Color = Settings.ESP.TeamColoredTracers and espColor or Settings.ESP.TracerColor
+        drawings.Tracer.Visible = true
+    else
+        drawings.Tracer.Visible = false
+    end
+    
+    -- Update Name
+    if Settings.ESP.Names then
+        local displayName = Settings.ESP.DisplayNames and player.DisplayName or player.Name
+        if Settings.ESP.ShowUsername then
+            displayName = player.Name .. " (@" .. player.DisplayName .. ")"
+        end
+        
+        drawings.Name.Text = displayName
+        drawings.Name.Position = Vector2.new(rootPos.X, boxY - 18)
+        drawings.Name.Color = espColor
+        drawings.Name.Visible = true
+    else
+        drawings.Name.Visible = false
+    end
+    
+    -- Update Distance
+    if Settings.ESP.Distance and myRoot then
+        local distance = Utils.GetDistance(myRoot.Position, rootPart.Position)
+        drawings.Distance.Text = Utils.FormatDistance(distance)
+        drawings.Distance.Position = Vector2.new(rootPos.X, boxY + boxHeight + 2)
+        drawings.Distance.Color = Settings.ESP.DistanceColor
+        drawings.Distance.Visible = true
+    else
+        drawings.Distance.Visible = false
+    end
+    
+    -- Update Health Bar
+    if Settings.ESP.HealthBar then
+        local healthPercent = clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
+        local barWidth = Settings.ESP.HealthBarSize
+        local barHeight = boxHeight * healthPercent
+        
+        local barX, barY
+        
+        if Settings.ESP.HealthBarSide == "Left" then
+            barX = boxX - barWidth - 2
+            barY = boxY + (boxHeight - barHeight)
+        elseif Settings.ESP.HealthBarSide == "Right" then
+            barX = boxX + boxWidth + 2
+            barY = boxY + (boxHeight - barHeight)
+        elseif Settings.ESP.HealthBarSide == "Top" then
+            barX = boxX
+            barY = boxY - barWidth - 2
+        elseif Settings.ESP.HealthBarSide == "Bottom" then
+            barX = boxX
+            barY = boxY + boxHeight + 2
+        end
+        
+        -- Health bar color
+        local healthColor = Settings.ESP.ColorCodedHealth and 
+                           Utils.GetHealthColor(humanoid.Health, humanoid.MaxHealth) or 
+                           Color3.fromRGB(0, 255, 0)
+        
+        drawings.HealthBar.Size = Vector2.new(barWidth, barHeight)
+        drawings.HealthBar.Position = Vector2.new(barX, barY)
+        drawings.HealthBar.Color = healthColor
+        drawings.HealthBar.Visible = true
+        
+        drawings.HealthBarOutline.Size = Vector2.new(barWidth, boxHeight)
+        drawings.HealthBarOutline.Position = Vector2.new(barX, boxY)
+        drawings.HealthBarOutline.Visible = true
+        
+        drawings.HealthBarBackground.Size = Vector2.new(barWidth, boxHeight)
+        drawings.HealthBarBackground.Position = Vector2.new(barX, boxY)
+        drawings.HealthBarBackground.Visible = true
+        
+        -- Health text
+        if Settings.ESP.HealthText then
+            local healthDisplay = Settings.ESP.HealthPercentage and 
+                                 string.format("%d%%", floor(healthPercent * 100)) or 
+                                 string.format("%d", floor(humanoid.Health))
+            
+            drawings.Health.Text = healthDisplay
+            drawings.Health.Position = Vector2.new(barX + barWidth / 2, barY - 15)
+            drawings.Health.Color = Color3.new(1, 1, 1)
+            drawings.Health.Visible = true
+        else
+            drawings.Health.Visible = false
+        end
+    else
+        drawings.HealthBar.Visible = false
+        drawings.HealthBarOutline.Visible = false
+        drawings.HealthBarBackground.Visible = false
+        drawings.Health.Visible = false
+    end
+    
+    -- Update Weapon
+    if Settings.ESP.ShowWeapon then
+        local tool = character:FindFirstChildOfClass("Tool")
+        if tool then
+            drawings.Weapon.Text = tool.Name
+            drawings.Weapon.Position = Vector2.new(rootPos.X, boxY + boxHeight + 18)
+            drawings.Weapon.Color = Settings.ESP.WeaponColor
+            drawings.Weapon.Visible = true
+        else
+            drawings.Weapon.Visible = false
+        end
+    else
+        drawings.Weapon.Visible = false
+    end
+    
+    -- Update Flags
+    if Settings.ESP.Flags then
+        local flags = {}
+        
+        if Settings.ESP.ShowKills and player:FindFirstChild("leaderstats") then
+            local kills = player.leaderstats:FindFirstChild("Kills")
+            if kills then
+                table.insert(flags, "K: " .. kills.Value)
+            end
+        end
+        
+        if Settings.ESP.ShowDeaths and player:FindFirstChild("leaderstats") then
+            local deaths = player.leaderstats:FindFirstChild("Deaths")
+            if deaths then
+                table.insert(flags, "D: " .. deaths.Value)
+            end
+        end
+        
+        if Settings.ESP.ShowPing then
+            local ping = floor(player:GetNetworkPing() * 1000)
+            table.insert(flags, ping .. "ms")
+        end
+        
+        if #flags > 0 then
+            drawings.Flags.Text = table.concat(flags, "\n")
+            drawings.Flags.Position = Vector2.new(boxX + boxWidth + 5, boxY)
+            drawings.Flags.Color = Settings.ESP.FlagColor
+            drawings.Flags.Visible = true
+        else
+            drawings.Flags.Visible = false
+        end
+    else
+        drawings.Flags.Visible = false
+    end
+    
+    -- Update Skeleton
+    if Settings.ESP.Skeleton then
+        self:UpdateSkeleton(player, character, espColor)
+    else
+        for _, line in pairs(drawings.Skeleton) do
+            line.Visible = false
+        end
+    end
+end
+
+-- Update Skeleton (SMOOTH)
+function ESP:UpdateSkeleton(player, character, color)
+    local espData = self.Players[player]
+    if not espData then return end
+    
+    local drawings = espData.Drawings.Skeleton
+    local playerKey = tostring(player.UserId)
+    
+    local function connectLimbs(part1Name, part2Name, lineName)
+        local part1 = character:FindFirstChild(part1Name)
+        local part2 = character:FindFirstChild(part2Name)
+        
+        if part1 and part2 then
+            -- Use WorldToScreen which properly returns depth as 3rd value
+            local pos1, vis1, depth1 = Utils.WorldToScreen(part1.Position)
+            local pos2, vis2, depth2 = Utils.WorldToScreen(part2.Position)
+            
+            if vis1 and vis2 and depth1 and depth1 > 0 and depth2 and depth2 > 0 then
+                local line = drawings[lineName]
+                if line then
+                    -- Apply smooth interpolation to skeleton limbs
+                    local smoothPos1 = Utils.SmoothVector2(playerKey .. "_skel_" .. part1Name, pos1, 0.4)
+                    local smoothPos2 = Utils.SmoothVector2(playerKey .. "_skel_" .. part2Name, pos2, 0.4)
+                    
+                    line.From = smoothPos1
+                    line.To = smoothPos2
+                    line.Color = color
+                    line.Visible = true
+                    return
+                end
+            end
+        end
+        
+        if drawings[lineName] then
+            drawings[lineName].Visible = false
+        end
+    end
+    
+    -- R15 Skeleton
+    connectLimbs("Head", "UpperTorso", "Head_Neck")
+    connectLimbs("UpperTorso", "LowerTorso", "UpperTorso_LowerTorso")
+    
+    -- Left Arm
+    connectLimbs("UpperTorso", "LeftUpperArm", "Neck_LeftShoulder")
+    connectLimbs("LeftUpperArm", "LeftLowerArm", "LeftShoulder_LeftUpperArm")
+    connectLimbs("LeftLowerArm", "LeftHand", "LeftUpperArm_LeftLowerArm")
+    
+    -- Right Arm
+    connectLimbs("UpperTorso", "RightUpperArm", "Neck_RightShoulder")
+    connectLimbs("RightUpperArm", "RightLowerArm", "RightShoulder_RightUpperArm")
+    connectLimbs("RightLowerArm", "RightHand", "RightUpperArm_RightLowerArm")
+    
+    -- Left Leg
+    connectLimbs("LowerTorso", "LeftUpperLeg", "LowerTorso_LeftUpperLeg")
+    connectLimbs("LeftUpperLeg", "LeftLowerLeg", "LeftUpperLeg_LeftLowerLeg")
+    connectLimbs("LeftLowerLeg", "LeftFoot", "LeftLowerLeg_LeftFoot")
+    
+    -- Right Leg
+    connectLimbs("LowerTorso", "RightUpperLeg", "LowerTorso_RightUpperLeg")
+    connectLimbs("RightUpperLeg", "RightLowerLeg", "RightUpperLeg_RightLowerLeg")
+    connectLimbs("RightLowerLeg", "RightFoot", "RightLowerLeg_RightFoot")
+end
+
+-- Out of View Arrow (Clean)
+function ESP:HandleOutOfView(player, screenPos)
+    local espData = self.Players[player]
+    if not espData then return end
+    
+    local arrow = espData.Drawings.Arrow
+    
+    if not Settings.ESP.OOVArrows then
+        if arrow then arrow.Visible = false end
+        return
+    end
+    
+    local character = player.Character
+    if not character then
+        if arrow then arrow.Visible = false end
+        return
+    end
+    
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then
+        if arrow then arrow.Visible = false end
+        return
+    end
+    
+    local viewportSize = Camera.ViewportSize
+    local screenCenter = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+    
+    -- Calculate direction to target
+    local direction = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter)
+    if direction.Magnitude == 0 then
+        direction = Vector2.new(0, -1)
+    else
+        direction = direction.Unit
+    end
+    
+    -- Position arrow at radius from center
+    local radius = Settings.ESP.ArrowRadius or 150
+    local arrowPos = screenCenter + (direction * radius)
+    
+    -- Calculate rotation angle
+    local angle = atan2(direction.Y, direction.X)
+    
+    -- Arrow size
+    local size = Settings.ESP.ArrowSize or 20
+    
+    -- Create triangle points pointing towards target
+    arrow.PointA = arrowPos + Vector2.new(cos(angle) * size, sin(angle) * size)
+    arrow.PointB = arrowPos + Vector2.new(cos(angle + 2.4) * size * 0.5, sin(angle + 2.4) * size * 0.5)
+    arrow.PointC = arrowPos + Vector2.new(cos(angle - 2.4) * size * 0.5, sin(angle - 2.4) * size * 0.5)
+    
+    arrow.Color = self:GetColor(player)
+    arrow.Filled = true
+    arrow.Transparency = Settings.ESP.ArrowTransparency or 1
+    arrow.Visible = true
+end
+
+-- Hide ESP
+function ESP:HideESP(player)
+    local espData = self.Players[player]
+    if not espData then return end
+    
+    for _, drawing in pairs(espData.Drawings) do
+        if type(drawing) == "table" then
+            for _, subDrawing in pairs(drawing) do
+                subDrawing.Visible = false
+            end
+        else
+            drawing.Visible = false
+        end
+    end
+end
+
+-- Hide Main ESP but keep arrow
+function ESP:HideMainESP(player)
+    local espData = self.Players[player]
+    if not espData then return end
+    
+    local drawings = espData.Drawings
+    
+    drawings.Box.Visible = false
+    drawings.BoxOutline.Visible = false
+    drawings.Tracer.Visible = false
+    drawings.Name.Visible = false
+    drawings.Distance.Visible = false
+    drawings.Health.Visible = false
+    drawings.Weapon.Visible = false
+    drawings.Flags.Visible = false
+    drawings.HealthBar.Visible = false
+    drawings.HealthBarOutline.Visible = false
+    drawings.HealthBarBackground.Visible = false
+    
+    for _, line in pairs(drawings.Skeleton) do
+        line.Visible = false
+    end
+end
+
+-- Update All ESP
+function ESP:UpdateAll()
+    -- Update smooth interpolation tick
+    Utils.UpdateSmoothTick()
+    
+    for _, player in pairs(Utils.GetAllPlayers()) do
+        if player ~= LocalPlayer or Settings.ESP.ShowSelf then
+            self:UpdateESP(player)
+        end
+    end
+end
+
+-- Clear All ESP
+function ESP:ClearAll()
+    for player, _ in pairs(self.Players) do
+        self:RemoveESP(player)
+    end
+end
+
+-- Initialize ESP for existing players
+for _, player in pairs(Utils.GetAllPlayers()) do
+    if player ~= LocalPlayer then
+        ESP:CreateESP(player)
+    end
+end
+
+-- Handle new players
+Players.PlayerAdded:Connect(function(player)
+    ESP:CreateESP(player)
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    -- Clear smooth cache for this player
+    Utils.ClearSmoothCache(tostring(player.UserId))
+    ESP:RemoveESP(player)
+    -- Clean up prediction engine data
+    PredictionEngine:RemovePlayerData(player)
+end)
+
+-- ESP Update Loop (Runs every frame for smooth rendering)
+table.insert(Connections, RunService.RenderStepped:Connect(function()
+    -- No delay for smoothest possible rendering
+    ESP:UpdateAll()
+end))
+
+-- Chams System
+table.insert(Connections, RunService.Heartbeat:Connect(function()
+    if not Settings.ESP.Chams then
+        for _, cham in pairs(ChamObjects) do
+            cham:Destroy()
+        end
+        ChamObjects = {}
+        return
+    end
+    
+    for _, player in pairs(Utils.GetAllPlayers()) do
+        if player ~= LocalPlayer and Utils.IsPlayerAlive(player) then
+            local character = player.Character
+            
+            for _, part in pairs(character:GetDescendants()) do
+                if part:IsA("BasePart") and not part:IsA("MeshPart") and not ChamObjects[part] then
+                    local box = Instance.new("SelectionBox")
+                    box.Adornee = part
+                    box.LineThickness = 0.05
+                    box.Color3 = Settings.ESP.ChamsColor
+                    box.Transparency = Settings.ESP.ChamsTransparency
+                    box.Parent = part
+                    
+                    ChamObjects[part] = box
+                end
+            end
+        end
+    end
+end))
+
+-- Highlight System
+table.insert(Connections, RunService.Heartbeat:Connect(function()
+    if not Settings.ESP.Highlight then
+        for _, highlight in pairs(HighlightObjects) do
+            highlight:Destroy()
+        end
+        HighlightObjects = {}
+        return
+    end
+    
+    for _, player in pairs(Utils.GetAllPlayers()) do
+        if player ~= LocalPlayer and Utils.IsPlayerAlive(player) then
+            local character = player.Character
+            
+            if not HighlightObjects[character] then
+                local highlight = Instance.new("Highlight")
+                highlight.FillColor = Settings.ESP.HighlightFillColor
+                highlight.OutlineColor = Settings.ESP.HighlightOutlineColor
+                highlight.FillTransparency = Settings.ESP.HighlightFillTransparency
+                highlight.OutlineTransparency = Settings.ESP.HighlightOutlineTransparency
+                highlight.Parent = character
+                
+                HighlightObjects[character] = highlight
+            end
+        end
+    end
+end))
+
+print("ESP System Loaded")
+
+-- FOV Enforcement Loop (keeps FOV even when games try to reset it)
+local OriginalFOV = Camera.FieldOfView
+table.insert(Connections, RunService.RenderStepped:Connect(function()
+    if Settings.Visuals.FOVChanger then
+        if Camera.FieldOfView ~= Settings.Visuals.FOVAmount then
+            Camera.FieldOfView = Settings.Visuals.FOVAmount
+        end
+    end
+end))
+
+task.wait(0.1)  -- Prevent timeout
+
+-- ---------------------------------------------------------------------------
+-- SECTION 5.5: UNIVERSAL FEATURE SYSTEMS
+-- ---------------------------------------------------------------------------
+
+print("Loading Universal Feature Systems...")
+
+-- Initialize Universal Settings
+Settings.Universal = Settings.Universal or {}
+
+-- Hitbox Expander System
+local OriginalSizes = {}
+table.insert(Connections, RunService.Heartbeat:Connect(function()
+    if not Settings.Universal.HitboxExpander then
+        -- Restore original sizes
+        for part, originalSize in pairs(OriginalSizes) do
+            if part and part.Parent then
+                part.Size = originalSize
+                part.Transparency = 1
+            end
+        end
+        OriginalSizes = {}
+        return
+    end
+    
+    local size = Settings.Universal.HitboxSize or 5
+    local transparency = Settings.Universal.HitboxTransparency or 0.5
+    
+    for _, player in pairs(Utils.GetAllPlayers()) do
+        if player ~= LocalPlayer and Utils.IsPlayerAlive(player) then
+            local character = player.Character
+            local hrp = character and character:FindFirstChild("HumanoidRootPart")
+            
+            if hrp then
+                if not OriginalSizes[hrp] then
+                    OriginalSizes[hrp] = hrp.Size
+                end
+                hrp.Size = Vector3.new(size, size, size)
+                hrp.Transparency = transparency
+            end
+        end
+    end
+end))
+
+-- Big Head System
+local OriginalHeadSizes = {}
+table.insert(Connections, RunService.Heartbeat:Connect(function()
+    if not Settings.Universal.BigHead then
+        -- Restore original head sizes
+        for head, originalSize in pairs(OriginalHeadSizes) do
+            if head and head.Parent then
+                head.Size = originalSize
+            end
+        end
+        OriginalHeadSizes = {}
+        return
+    end
+    
+    local headSize = Settings.Universal.HeadSize or 5
+    
+    for _, player in pairs(Utils.GetAllPlayers()) do
+        if player ~= LocalPlayer and Utils.IsPlayerAlive(player) then
+            local character = player.Character
+            local head = character and character:FindFirstChild("Head")
+            
+            if head then
+                if not OriginalHeadSizes[head] then
+                    OriginalHeadSizes[head] = head.Size
+                end
+                head.Size = Vector3.new(headSize, headSize, headSize)
+            end
+        end
+    end
+end))
+
+-- Walk Fling System
+table.insert(Connections, RunService.Heartbeat:Connect(function()
+    if not Settings.Universal.WalkFling then return end
+    
+    local character = GetCharacter()
+    local hrp = GetHumanoidRootPart()
+    
+    if character and hrp then
+        local power = Settings.Universal.FlingPower or 50
+        hrp.AssemblyAngularVelocity = Vector3.new(power * 100, power * 100, power * 100)
+    end
+end))
+
+-- Anti-Fling System
+table.insert(Connections, RunService.Heartbeat:Connect(function()
+    if not Settings.Universal.AntiFling then return end
+    
+    local hrp = GetHumanoidRootPart()
+    if hrp then
+        local velocity = hrp.AssemblyLinearVelocity
+        local maxVelocity = 100
+        
+        if velocity.Magnitude > maxVelocity then
+            hrp.AssemblyLinearVelocity = velocity.Unit * maxVelocity
+        end
+        
+        local angVelocity = hrp.AssemblyAngularVelocity
+        if angVelocity.Magnitude > maxVelocity then
+            hrp.AssemblyAngularVelocity = angVelocity.Unit * maxVelocity
+        end
+    end
+end))
+
+-- Anti-Ragdoll System
+table.insert(Connections, RunService.Heartbeat:Connect(function()
+    if not Settings.Universal.AntiRagdoll then return end
+    
+    local humanoid = GetHumanoid()
+    if humanoid then
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+    end
+end))
+
+-- Anti-Knockback System
+table.insert(Connections, RunService.Heartbeat:Connect(function()
+    if not Settings.Universal.AntiKnockback then return end
+    
+    local hrp = GetHumanoidRootPart()
+    if hrp then
+        hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
+    end
+end))
+
+-- Anti-Slow System
+table.insert(Connections, RunService.Heartbeat:Connect(function()
+    if not Settings.Universal.AntiSlow then return end
+    
+    local humanoid = GetHumanoid()
+    if humanoid and humanoid.WalkSpeed < 16 then
+        humanoid.WalkSpeed = 16
+    end
+end))
+
+-- God Mode (FE) System
+table.insert(Connections, RunService.Heartbeat:Connect(function()
+    if not Settings.Universal.GodMode then return end
+    
+    local character = GetCharacter()
+    if character then
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+end))
+
+-- Infinite Jump System
+local InfiniteJumpConnection
+UserInputService.JumpRequest:Connect(function()
+    if Settings.Universal.InfiniteJump then
+        local humanoid = GetHumanoid()
+        if humanoid then
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+-- Remove Jump Cooldown System
+table.insert(Connections, RunService.Heartbeat:Connect(function()
+    if not Settings.Universal.RemoveJumpCooldown then return end
+    
+    local humanoid = GetHumanoid()
+    if humanoid then
+        humanoid.UseJumpPower = true
+    end
+end))
+
+-- NoClip System
+table.insert(Connections, RunService.Stepped:Connect(function()
+    if not Settings.Universal.NoClip then return end
+    
+    local character = GetCharacter()
+    if character then
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide == true then
+                part.CanCollide = false
+            end
+        end
+    end
+end))
+
+-- Click Teleport System
+local ClickTPEnabled = false
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end
+    
+    if Settings.Universal.ClickTP then
+        -- Use Obsidian KeyPicker :GetState() if available
+        if type(Options) == "table" and Options.ClickTPKey and Options.ClickTPKey.GetState then
+            if Options.ClickTPKey:GetState() then
+                ClickTPEnabled = true
+            end
+        else
+            -- Fallback
+            local keyEnum = nil
+            if type(Options) == "table" and Options.ClickTPKey then
+                keyEnum = Options.ClickTPKey.Value
+            end
+            
+            local keyMatched = false
+            if keyEnum and typeof(keyEnum) == "EnumItem" then
+                if keyEnum.EnumType == Enum.KeyCode then
+                    keyMatched = (input.KeyCode == keyEnum)
+                elseif keyEnum.EnumType == Enum.UserInputType then
+                    keyMatched = (input.UserInputType == keyEnum)
+                end
+            elseif input.KeyCode == Enum.KeyCode.E then
+                keyMatched = true
+            end
+            
+            if keyMatched then
+                ClickTPEnabled = true
+            end
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, processed)
+    if Settings.Universal.ClickTP then
+        local keyEnum = nil
+        if type(Options) == "table" and Options.ClickTPKey then
+            keyEnum = Options.ClickTPKey.Value
+        end
+        
+        local keyMatched = false
+        if keyEnum and typeof(keyEnum) == "EnumItem" then
+            if keyEnum.EnumType == Enum.KeyCode then
+                keyMatched = (input.KeyCode == keyEnum)
+            elseif keyEnum.EnumType == Enum.UserInputType then
+                keyMatched = (input.UserInputType == keyEnum)
+            end
+        elseif input.KeyCode == Enum.KeyCode.E then
+            keyMatched = true
+        end
+        
+        if keyMatched then
+            ClickTPEnabled = false
+        end
+    end
+end)
+
+local Mouse = LocalPlayer:GetMouse()
+Mouse.Button1Down:Connect(function()
+    if ClickTPEnabled and Settings.Universal.ClickTP then
+        local hrp = GetHumanoidRootPart()
+        if hrp and Mouse.Hit then
+            hrp.CFrame = Mouse.Hit + Vector3.new(0, 3, 0)
+        end
+    end
+end)
+
+-- TP To Nearest Player
+local function TPToNearestPlayer()
+    local hrp = GetHumanoidRootPart()
+    if not hrp then return end
+    
+    local nearestPlayer, nearestDistance = nil, math.huge
+    
+    for _, player in pairs(Utils.GetAllPlayers()) do
+        if player ~= LocalPlayer and Utils.IsPlayerAlive(player) then
+            local character = player.Character
+            local targetHRP = character and character:FindFirstChild("HumanoidRootPart")
+            
+            if targetHRP then
+                local distance = (targetHRP.Position - hrp.Position).Magnitude
+                if distance < nearestDistance then
+                    nearestDistance = distance
+                    nearestPlayer = targetHRP
+                end
+            end
+        end
+    end
+    
+    if nearestPlayer then
+        hrp.CFrame = nearestPlayer.CFrame + Vector3.new(0, 0, 5)
+    end
+end
+
+print("Universal Feature Systems Loaded")
+
+task.wait(0.1)  -- Prevent timeout
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SECTION 6: OBSIDIAN UI LIBRARY (Lines 2360+)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+print("Loading Obsidian UI Library...")
+
+-- Load Obsidian Library
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+local Options = Library.Options
+local Toggles = Library.Toggles
+
+-- Add unload handler
+Library:OnUnload(function()
+    print("Hydra Universal unloaded!")
+    Cleanup()
+end)
+
+-- Create Main Window
+local Window = Library:CreateWindow({
+    Title = "HYDRA UNIVERSAL V3",
+    Footer = "Universal Edition",
+    NotifySide = "Right",
+    ShowCustomCursor = true,
+    Resizable = true,
+    AutoShow = true,
+})
+
+-- Create Tabs
+local Tabs = {
+    Aimbot = Window:AddTab("Aimbot", "crosshair"),
+    ESP = Window:AddTab("ESP", "eye"),
+    Visuals = Window:AddTab("Visuals", "palette"),
+    Movement = Window:AddTab("Movement", "zap"),
+    Universal = Window:AddTab("Universal", "star"),
+    Misc = Window:AddTab("Misc", "settings"),
+    ["UI Settings"] = Window:AddTab("UI Settings", "sliders"),
+}
+
+print("Creating UI Tabs...")
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- AIMBOT TAB
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local AimbotMain = Tabs.Aimbot:AddLeftGroupbox("Main Settings")
+
+AimbotMain:AddToggle("AimbotEnabled", {
+    Text = "Enable Aimbot",
+    Default = Settings.Aimbot.Enabled,
+    Tooltip = "Toggle aimbot on/off",
+    Callback = function(Value)
+        Settings.Aimbot.Enabled = Value
+    end
+})
+
+AimbotMain:AddToggle("TeamCheck", {
+    Text = "Team Check",
+    Default = Settings.Aimbot.TeamCheck,
+    Tooltip = "Ignore teammates",
+    Callback = function(Value)
+        Settings.Aimbot.TeamCheck = Value
+    end
+})
+
+AimbotMain:AddToggle("VisibleCheck", {
+    Text = "Visible Check",
+    Default = Settings.Aimbot.VisibleCheck,
+    Tooltip = "Only aim at visible targets",
+    Callback = function(Value)
+        Settings.Aimbot.VisibleCheck = Value
+    end
+})
+
+AimbotMain:AddToggle("UseFOV", {
+    Text = "Use FOV Circle",
+    Default = Settings.Aimbot.UseFOV,
+    Tooltip = "Limit aimbot to FOV circle",
+    Callback = function(Value)
+        Settings.Aimbot.UseFOV = Value
+    end
+})
+
+AimbotMain:AddSlider("FOVRadius", {
+    Text = "FOV Radius",
+    Default = Settings.Aimbot.FOVRadius,
+    Min = 20,
+    Max = 500,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+        Settings.Aimbot.FOVRadius = Value
+    end
+})
+
+local AimbotSettings = Tabs.Aimbot:AddRightGroupbox("Aim Settings")
+
+AimbotSettings:AddDropdown("AimMethod", {
+    Values = {"Camera", "Mouse", "CameraLock", "Silent"},
+    Default = 1,
+    Multi = false,
+    Text = "Aim Method",
+    Tooltip = "Method used for aiming",
+    Callback = function(Value)
+        Settings.Aimbot.AimMethod = Value
+    end
+})
+
+AimbotSettings:AddDropdown("TargetPart", {
+    Values = {"Head", "UpperTorso", "LowerTorso", "HumanoidRootPart", "Random", "Closest"},
+    Default = 1,
+    Multi = false,
+    Text = "Target Part",
+    Tooltip = "Which body part to aim at",
+    Callback = function(Value)
+        Settings.Aimbot.TargetPart = Value
+    end
+})
+
+AimbotSettings:AddSlider("Smoothness", {
+    Text = "Smoothness",
+    Default = Settings.Aimbot.Smoothness,
+    Min = 0.01,
+    Max = 1,
+    Rounding = 2,
+    Compact = false,
+    Tooltip = "Lower = faster aim",
+    Callback = function(Value)
+        Settings.Aimbot.Smoothness = Value
+    end
+})
+
+local AimbotPrediction = Tabs.Aimbot:AddLeftGroupbox("Prediction")
+
+AimbotPrediction:AddToggle("UsePrediction", {
+    Text = "Use Prediction",
+    Default = Settings.Aimbot.UsePrediction,
+    Tooltip = "Predict target movement",
+    Callback = function(Value)
+        Settings.Aimbot.UsePrediction = Value
+    end
+})
+
+AimbotPrediction:AddSlider("Prediction", {
+    Text = "Prediction Amount",
+    Default = Settings.Aimbot.Prediction,
+    Min = 0.05,
+    Max = 0.5,
+    Rounding = 3,
+    Compact = false,
+    Callback = function(Value)
+        Settings.Aimbot.Prediction = Value
+    end
+})
+
+AimbotPrediction:AddToggle("AutoPrediction", {
+    Text = "Auto Prediction",
+    Default = Settings.Aimbot.AutoPrediction,
+    Tooltip = "Auto-adjust based on ping",
+    Callback = function(Value)
+        Settings.Aimbot.AutoPrediction = Value
+    end
+})
+
+AimbotPrediction:AddToggle("AirShotCompensation", {
+    Text = "Air Shot Compensation",
+    Default = Settings.Aimbot.AirShotCompensation,
+    Tooltip = "Compensate for jumping targets",
+    Callback = function(Value)
+        Settings.Aimbot.AirShotCompensation = Value
+    end
+})
+
+local AimbotVisuals = Tabs.Aimbot:AddLeftGroupbox("Visuals")
+
+AimbotVisuals:AddToggle("FOVVisible", {
+    Text = "Show FOV Circle",
+    Default = Settings.Aimbot.FOVVisible,
+    Callback = function(Value)
+        Settings.Aimbot.FOVVisible = Value
+    end
+}):AddColorPicker("FOVColor", {
+    Default = Settings.Aimbot.FOVColor,
+    Title = "FOV Color",
+    Callback = function(Value)
+        Settings.Aimbot.FOVColor = Value
+    end
+})
+
+AimbotVisuals:AddToggle("TargetTracers", {
+    Text = "Target Tracers",
+    Default = Settings.Aimbot.TargetTracers,
+    Callback = function(Value)
+        Settings.Aimbot.TargetTracers = Value
+    end
+}):AddColorPicker("TracerColor", {
+    Default = Settings.Aimbot.TracerColor,
+    Title = "Tracer Color",
+    Callback = function(Value)
+        Settings.Aimbot.TracerColor = Value
+    end
+})
+
+local AimbotKeybind = Tabs.Aimbot:AddRightGroupbox("Keybind Settings")
+
+AimbotKeybind:AddDropdown("AimActivation", {
+    Values = {"Hold", "Toggle", "Always On"},
+    Default = 1,
+    Multi = false,
+    Text = "Activation Mode",
+    Tooltip = "How to activate aimbot",
+    Callback = function(Value)
+        Settings.Aimbot.ActivationMode = Value
+    end
+})
+
+AimbotKeybind:AddLabel("Aim Key"):AddKeyPicker("AimKey", {
+    Default = "MB2",
+    SyncToggleState = false,
+    Mode = "Hold",
+    Text = "Aim Key",
+    NoUI = false,
+})
+
+AimbotKeybind:AddToggle("AutoLockOn", {
+    Text = "Auto Lock On",
+    Default = false,
+    Tooltip = "Auto lock when target in FOV",
+    Callback = function(Value)
+        Settings.Aimbot.AutoLockOn = Value
+    end
+})
+
+AimbotKeybind:AddToggle("LockOnNotify", {
+    Text = "Lock On Notification",
+    Default = true,
+    Tooltip = "Notify when locked on",
+    Callback = function(Value)
+        Settings.Aimbot.LockOnNotify = Value
+    end
+})
+
+-- TriggerBot Section
+local TriggerBotGroup = Tabs.Aimbot:AddRightGroupbox("TriggerBot")
+
+TriggerBotGroup:AddToggle("TriggerBot", {
+    Text = "Enable TriggerBot",
+    Default = Settings.Aimbot.TriggerBot,
+    Tooltip = "Auto-fire when crosshair is on enemy",
+    Callback = function(Value)
+        Settings.Aimbot.TriggerBot = Value
+    end
+})
+
+TriggerBotGroup:AddSlider("TriggerDelay", {
+    Text = "Trigger Delay",
+    Default = Settings.Aimbot.TriggerDelay,
+    Min = 0,
+    Max = 0.5,
+    Rounding = 3,
+    Compact = false,
+    Tooltip = "Delay before firing (seconds)",
+    Callback = function(Value)
+        Settings.Aimbot.TriggerDelay = Value
+    end
+})
+
+TriggerBotGroup:AddToggle("BurstMode", {
+    Text = "Burst Fire",
+    Default = Settings.Aimbot.BurstMode,
+    Tooltip = "Fire in bursts instead of single shots",
+    Callback = function(Value)
+        Settings.Aimbot.BurstMode = Value
+    end
+})
+
+TriggerBotGroup:AddSlider("BurstCount", {
+    Text = "Burst Count",
+    Default = Settings.Aimbot.BurstCount,
+    Min = 2,
+    Max = 10,
+    Rounding = 0,
+    Compact = false,
+    Tooltip = "Shots per burst",
+    Callback = function(Value)
+        Settings.Aimbot.BurstCount = Value
+    end
+})
+
+TriggerBotGroup:AddSlider("BurstDelay", {
+    Text = "Burst Delay",
+    Default = Settings.Aimbot.BurstDelay,
+    Min = 0.01,
+    Max = 0.3,
+    Rounding = 3,
+    Compact = false,
+    Tooltip = "Delay between burst shots",
+    Callback = function(Value)
+        Settings.Aimbot.BurstDelay = Value
+    end
+})
+
+TriggerBotGroup:AddToggle("TriggerOnlyOnTarget", {
+    Text = "Only On Locked Target",
+    Default = Settings.Aimbot.TriggerOnlyOnTarget or true,
+    Tooltip = "Only fire when crosshair is on aimbot's locked target",
+    Callback = function(Value)
+        Settings.Aimbot.TriggerOnlyOnTarget = Value
+    end
+})
+
+TriggerBotGroup:AddSlider("TriggerHitChance", {
+    Text = "Hit Chance (%)",
+    Default = Settings.Aimbot.TriggerHitChance or 100,
+    Min = 0,
+    Max = 100,
+    Rounding = 0,
+    Compact = false,
+    Tooltip = "Chance to fire when on target",
+    Callback = function(Value)
+        Settings.Aimbot.TriggerHitChance = Value
+    end
+})
+
+TriggerBotGroup:AddSlider("TriggerMaxDistance", {
+    Text = "Max Distance",
+    Default = Settings.Aimbot.TriggerMaxDistance or 500,
+    Min = 50,
+    Max = 1000,
+    Rounding = 0,
+    Compact = false,
+    Tooltip = "Maximum distance for triggerbot",
+    Callback = function(Value)
+        Settings.Aimbot.TriggerMaxDistance = Value
+    end
+})
+
+TriggerBotGroup:AddToggle("TriggerRequireVisible", {
+    Text = "Require Visibility",
+    Default = Settings.Aimbot.TriggerRequireVisible or true,
+    Tooltip = "Only fire when target is visible",
+    Callback = function(Value)
+        Settings.Aimbot.TriggerRequireVisible = Value
+    end
+})
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- ESP TAB
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local ESPMain = Tabs.ESP:AddLeftGroupbox("Main Settings")
+
+ESPMain:AddToggle("ESPEnabled", {
+    Text = "Enable ESP",
+    Default = Settings.ESP.Enabled,
+    Tooltip = "Toggle ESP on/off",
+    Callback = function(Value)
+        Settings.ESP.Enabled = Value
+    end
+})
+
+ESPMain:AddToggle("ESPTeamCheck", {
+    Text = "Team Check",
+    Default = Settings.ESP.Teamcheck,
+    Tooltip = "Check teams",
+    Callback = function(Value)
+        Settings.ESP.Teamcheck = Value
+    end
+})
+
+ESPMain:AddToggle("ShowTeammates", {
+    Text = "Show Teammates",
+    Default = Settings.ESP.ShowTeammates,
+    Tooltip = "Show teammates on ESP",
+    Callback = function(Value)
+        Settings.ESP.ShowTeammates = Value
+    end
+})
+
+ESPMain:AddSlider("MaxDistance", {
+    Text = "Max Distance",
+    Default = Settings.ESP.MaxDistance,
+    Min = 500,
+    Max = 5000,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+        Settings.ESP.MaxDistance = Value
+    end
+})
+
+ESPMain:AddDivider()
+
+ESPMain:AddToggle("SmoothESP", {
+    Text = "Smooth ESP",
+    Default = true,
+    Tooltip = "Ultra smooth ESP rendering with interpolation",
+    Callback = function(Value)
+        Settings.ESP.SmoothEnabled = Value
+        -- Toggle smooth cache enabled state
+        if Utils and Utils.SetSmoothFactor then
+            -- When disabled, use instant values
+            Utils.SetSmoothFactor(Value and 0.3 or 1)
+        end
+    end
+})
+
+ESPMain:AddSlider("SmoothFactor", {
+    Text = "Smooth Factor",
+    Default = 0.3,
+    Min = 0.1,
+    Max = 0.8,
+    Rounding = 2,
+    Compact = false,
+    Tooltip = "Lower = Smoother (more lag), Higher = Responsive",
+    Callback = function(Value)
+        Settings.ESP.SmoothFactor = Value
+        if Utils and Utils.SetSmoothFactor then
+            Utils.SetSmoothFactor(Value)
+        end
+    end
+})
+
+local ESPBox = Tabs.ESP:AddRightGroupbox("Box ESP")
+
+ESPBox:AddToggle("Boxes", {
+    Text = "Boxes",
+    Default = Settings.ESP.Boxes,
+    Callback = function(Value)
+        Settings.ESP.Boxes = Value
+    end
+})
+
+ESPBox:AddToggle("BoxFilled", {
+    Text = "Filled Boxes",
+    Default = Settings.ESP.BoxFilled,
+    Callback = function(Value)
+        Settings.ESP.BoxFilled = Value
+    end
+})
+
+ESPBox:AddToggle("TeamColoredBoxes", {
+    Text = "Team Colored",
+    Default = Settings.ESP.TeamColoredBoxes,
+    Callback = function(Value)
+        Settings.ESP.TeamColoredBoxes = Value
+    end
+})
+
+ESPBox:AddSlider("BoxThickness", {
+    Text = "Box Thickness",
+    Default = Settings.ESP.BoxThickness,
+    Min = 1,
+    Max = 5,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+        Settings.ESP.BoxThickness = Value
+    end
+})
+
+local ESPTracers = Tabs.ESP:AddLeftGroupbox("Tracers")
+
+ESPTracers:AddToggle("Tracers", {
+    Text = "Tracers",
+    Default = Settings.ESP.Tracers,
+    Callback = function(Value)
+        Settings.ESP.Tracers = Value
+    end
+})
+
+ESPTracers:AddDropdown("TracerOrigin", {
+    Values = {"Bottom", "Center", "Top", "Mouse"},
+    Default = 1,
+    Multi = false,
+    Text = "Tracer Origin",
+    Callback = function(Value)
+        Settings.ESP.TracerOrigin = Value
+    end
+})
+
+local ESPText = Tabs.ESP:AddRightGroupbox("Text ESP")
+
+ESPText:AddToggle("Names", {
+    Text = "Names",
+    Default = Settings.ESP.Names,
+    Callback = function(Value)
+        Settings.ESP.Names = Value
+    end
+})
+
+ESPText:AddToggle("DisplayNames", {
+    Text = "Display Names",
+    Default = Settings.ESP.DisplayNames,
+    Callback = function(Value)
+        Settings.ESP.DisplayNames = Value
+    end
+})
+
+ESPText:AddToggle("Distance", {
+    Text = "Distance",
+    Default = Settings.ESP.Distance,
+    Callback = function(Value)
+        Settings.ESP.Distance = Value
+    end
+})
+
+ESPText:AddToggle("ShowWeapon", {
+    Text = "Weapon",
+    Default = Settings.ESP.ShowWeapon,
+    Callback = function(Value)
+        Settings.ESP.ShowWeapon = Value
+    end
+})
+
+local ESPHealth = Tabs.ESP:AddLeftGroupbox("Health")
+
+ESPHealth:AddToggle("HealthBar", {
+    Text = "Health Bar",
+    Default = Settings.ESP.HealthBar,
+    Callback = function(Value)
+        Settings.ESP.HealthBar = Value
+    end
+})
+
+ESPHealth:AddToggle("HealthText", {
+    Text = "Health Text",
+    Default = Settings.ESP.HealthText,
+    Callback = function(Value)
+        Settings.ESP.HealthText = Value
+    end
+})
+
+ESPHealth:AddToggle("ColorCodedHealth", {
+    Text = "Color Coded Health",
+    Default = Settings.ESP.ColorCodedHealth,
+    Callback = function(Value)
+        Settings.ESP.ColorCodedHealth = Value
+    end
+})
+
+ESPHealth:AddDropdown("HealthBarSide", {
+    Values = {"Left", "Right", "Top", "Bottom"},
+    Default = 1,
+    Multi = false,
+    Text = "Health Bar Side",
+    Callback = function(Value)
+        Settings.ESP.HealthBarSide = Value
+    end
+})
+
+local ESPOther = Tabs.ESP:AddRightGroupbox("Other")
+
+ESPOther:AddToggle("Skeleton", {
+    Text = "Skeleton",
+    Default = Settings.ESP.Skeleton,
+    Callback = function(Value)
+        Settings.ESP.Skeleton = Value
+    end
+})
+
+ESPOther:AddToggle("Chams", {
+    Text = "Chams",
+    Default = Settings.ESP.Chams,
+    Callback = function(Value)
+        Settings.ESP.Chams = Value
+    end
+})
+
+ESPOther:AddToggle("Highlight", {
+    Text = "Highlight",
+    Default = Settings.ESP.Highlight,
+    Callback = function(Value)
+        Settings.ESP.Highlight = Value
+    end
+})
+
+ESPOther:AddToggle("OOVArrows", {
+    Text = "Out of View Arrows",
+    Default = Settings.ESP.OOVArrows,
+    Tooltip = "Show arrows for off-screen enemies",
+    Callback = function(Value)
+        Settings.ESP.OOVArrows = Value
+    end
+}):AddColorPicker("ArrowColor", {
+    Default = Settings.ESP.ArrowColor,
+    Title = "Arrow Color",
+    Callback = function(Value)
+        Settings.ESP.ArrowColor = Value
+    end
+})
+
+ESPOther:AddSlider("ArrowSize", {
+    Text = "Arrow Size",
+    Default = Settings.ESP.ArrowSize or 25,
+    Min = 10,
+    Max = 50,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+        Settings.ESP.ArrowSize = Value
+    end
+})
+
+ESPOther:AddSlider("ArrowRadius", {
+    Text = "Arrow Distance",
+    Default = Settings.ESP.ArrowRadius or 200,
+    Min = 50,
+    Max = 400,
+    Rounding = 0,
+    Compact = false,
+    Tooltip = "Distance from center of screen",
+    Callback = function(Value)
+        Settings.ESP.ArrowRadius = Value
+    end
+})
+
+ESPOther:AddToggle("ArrowPulse", {
+    Text = "Pulse Animation",
+    Default = Settings.ESP.ArrowPulse or true,
+    Tooltip = "Arrows pulse/breathe animation",
+    Callback = function(Value)
+        Settings.ESP.ArrowPulse = Value
+    end
+})
+
+ESPOther:AddToggle("ArrowShowDistance", {
+    Text = "Show Distance",
+    Default = Settings.ESP.ArrowShowDistance or true,
+    Tooltip = "Show distance text near arrows",
+    Callback = function(Value)
+        Settings.ESP.ArrowShowDistance = Value
+    end
+})
+
+ESPOther:AddToggle("ArrowUseTeamColor", {
+    Text = "Use Team Colors",
+    Default = Settings.ESP.ArrowUseTeamColor or true,
+    Tooltip = "Color arrows based on enemy/team",
+    Callback = function(Value)
+        Settings.ESP.ArrowUseTeamColor = Value
+    end
+})
+
+ESPOther:AddToggle("ArrowHealthColor", {
+    Text = "Health-Based Color",
+    Default = Settings.ESP.ArrowHealthColor or false,
+    Tooltip = "Color arrows based on target health",
+    Callback = function(Value)
+        Settings.ESP.ArrowHealthColor = Value
+    end
+})
+
+ESPOther:AddToggle("ArrowScaleWithDistance", {
+    Text = "Scale With Distance",
+    Default = Settings.ESP.ArrowScaleWithDistance or true,
+    Tooltip = "Arrows get bigger when enemies are closer",
+    Callback = function(Value)
+        Settings.ESP.ArrowScaleWithDistance = Value
+    end
+})
+
+local ESPColors = Tabs.ESP:AddLeftGroupbox("Colors")
+
+ESPColors:AddLabel("Enemy Color"):AddColorPicker("EnemyColor", {
+    Default = Settings.ESP.EnemyColor,
+    Title = "Enemy Color",
+    Callback = function(Value)
+        Settings.ESP.EnemyColor = Value
+    end
+})
+
+ESPColors:AddLabel("Team Color"):AddColorPicker("TeamColor", {
+    Default = Settings.ESP.TeamColor,
+    Title = "Team Color",
+    Callback = function(Value)
+        Settings.ESP.TeamColor = Value
+    end
+})
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- VISUALS TAB
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local VisualsWorld = Tabs.Visuals:AddLeftGroupbox("World")
+
+VisualsWorld:AddToggle("Fullbright", {
+    Text = "Fullbright",
+    Default = Settings.Visuals.Fullbright,
+    Callback = function(Value)
+        Settings.Visuals.Fullbright = Value
+        if Value then
+            Lighting.Brightness = 2
+            Lighting.ClockTime = 14
+            Lighting.FogEnd = 100000
+            Lighting.GlobalShadows = false
+            Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+        else
+            Lighting.Brightness = 1
+            Lighting.GlobalShadows = true
+        end
+    end
+})
+
+VisualsWorld:AddToggle("NoFog", {
+    Text = "No Fog",
+    Default = Settings.Visuals.NoFog,
+    Callback = function(Value)
+        Settings.Visuals.NoFog = Value
+        if Value then
+            Lighting.FogEnd = 100000
+        else
+            Lighting.FogEnd = 1000
+        end
+    end
+})
+
+local VisualsCrosshair = Tabs.Visuals:AddRightGroupbox("Crosshair")
+
+VisualsCrosshair:AddToggle("Crosshair", {
+    Text = "Crosshair",
+    Default = Settings.Visuals.Crosshair,
+    Callback = function(Value)
+        Settings.Visuals.Crosshair = Value
+    end
+}):AddColorPicker("CrosshairColor", {
+    Default = Settings.Visuals.CrosshairColor,
+    Title = "Crosshair Color",
+    Callback = function(Value)
+        Settings.Visuals.CrosshairColor = Value
+    end
+})
+
+VisualsCrosshair:AddSlider("CrosshairSize", {
+    Text = "Crosshair Size",
+    Default = Settings.Visuals.CrosshairSize,
+    Min = 5,
+    Max = 30,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+        Settings.Visuals.CrosshairSize = Value
+    end
+})
+
+VisualsCrosshair:AddSlider("CrosshairGap", {
+    Text = "Crosshair Gap",
+    Default = Settings.Visuals.CrosshairGap,
+    Min = 0,
+    Max = 20,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+        Settings.Visuals.CrosshairGap = Value
+    end
+})
+
+local VisualsCamera = Tabs.Visuals:AddLeftGroupbox("Camera")
+
+VisualsCamera:AddToggle("FOVChanger", {
+    Text = "FOV Changer",
+    Default = Settings.Visuals.FOVChanger,
+    Callback = function(Value)
+        Settings.Visuals.FOVChanger = Value
+        if Value then
+            Camera.FieldOfView = Settings.Visuals.FOVAmount
+        else
+            Camera.FieldOfView = 70
+        end
+    end
+})
+
+VisualsCamera:AddSlider("FOVAmount", {
+    Text = "FOV Amount",
+    Default = Settings.Visuals.FOVAmount,
+    Min = 70,
+    Max = 120,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+        Settings.Visuals.FOVAmount = Value
+        if Settings.Visuals.FOVChanger then
+            Camera.FieldOfView = Value
+        end
+    end
+})
+
+VisualsCamera:AddToggle("NoCameraShake", {
+    Text = "No Camera Shake",
+    Default = Settings.Visuals.NoCameraShake,
+    Callback = function(Value)
+        Settings.Visuals.NoCameraShake = Value
+    end
+})
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- MOVEMENT TAB
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local MovementSpeed = Tabs.Movement:AddLeftGroupbox("Speed")
+
+MovementSpeed:AddToggle("SpeedEnabled", {
+    Text = "Speed Hack",
+    Default = Settings.Movement.SpeedEnabled,
+    Callback = function(Value)
+        Settings.Movement.SpeedEnabled = Value
+        if Value then
+            local humanoid = GetHumanoid()
+            if humanoid then
+                humanoid.WalkSpeed = Settings.Movement.WalkSpeed
+            end
+        else
+            local humanoid = GetHumanoid()
+            if humanoid then
+                humanoid.WalkSpeed = 16
+            end
+        end
+    end
+})
+
+MovementSpeed:AddSlider("WalkSpeed", {
+    Text = "Walk Speed",
+    Default = Settings.Movement.WalkSpeed,
+    Min = 16,
+    Max = 200,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+        Settings.Movement.WalkSpeed = Value
+        if Settings.Movement.SpeedEnabled then
+            local humanoid = GetHumanoid()
+            if humanoid then
+                humanoid.WalkSpeed = Value
+            end
+        end
+    end
+})
+
+local MovementJump = Tabs.Movement:AddRightGroupbox("Jump")
+
+MovementJump:AddToggle("JumpEnabled", {
+    Text = "Jump Power",
+    Default = Settings.Movement.JumpEnabled,
+    Callback = function(Value)
+        Settings.Movement.JumpEnabled = Value
+        if Value then
+            local humanoid = GetHumanoid()
+            if humanoid then
+                humanoid.JumpPower = Settings.Movement.JumpPower
+            end
+        else
+            local humanoid = GetHumanoid()
+            if humanoid then
+                humanoid.JumpPower = 50
+            end
+        end
+    end
+})
+
+MovementJump:AddSlider("JumpPower", {
+    Text = "Jump Power",
+    Default = Settings.Movement.JumpPower,
+    Min = 50,
+    Max = 200,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+        Settings.Movement.JumpPower = Value
+        if Settings.Movement.JumpEnabled then
+            local humanoid = GetHumanoid()
+            if humanoid then
+                humanoid.JumpPower = Value
+            end
+        end
+    end
+})
+
+MovementJump:AddToggle("InfiniteJump", {
+    Text = "Infinite Jump",
+    Default = Settings.Movement.InfiniteJump,
+    Callback = function(Value)
+        Settings.Movement.InfiniteJump = Value
+    end
+})
+
+MovementJump:AddToggle("BunnyHop", {
+    Text = "Bunny Hop",
+    Default = Settings.Movement.BunnyHop,
+    Callback = function(Value)
+        Settings.Movement.BunnyHop = Value
+    end
+})
+
+local MovementFlight = Tabs.Movement:AddLeftGroupbox("Flight")
+
+MovementFlight:AddToggle("Flight", {
+    Text = "Flight",
+    Default = Settings.Movement.Flight,
+    Tooltip = "Enable flight mode",
+    Callback = function(Value)
+        Settings.Movement.Flight = Value
+    end
+})
+
+MovementFlight:AddSlider("FlightSpeed", {
+    Text = "Flight Speed",
+    Default = Settings.Movement.FlightSpeed,
+    Min = 10,
+    Max = 200,
+    Rounding = 0,
+    Compact = false,
+    Callback = function(Value)
+        Settings.Movement.FlightSpeed = Value
+    end
+})
+
+local MovementOther = Tabs.Movement:AddRightGroupbox("Other")
+
+MovementOther:AddToggle("Noclip", {
+    Text = "Noclip",
+    Default = Settings.Movement.Noclip,
+    Callback = function(Value)
+        Settings.Movement.Noclip = Value
+    end
+})
+
+MovementOther:AddToggle("NoFallDamage", {
+    Text = "No Fall Damage",
+    Default = Settings.Movement.NoFallDamage,
+    Callback = function(Value)
+        Settings.Movement.NoFallDamage = Value
+    end
+})
+
+MovementOther:AddToggle("WaterWalk", {
+    Text = "Water Walk",
+    Default = Settings.Movement.WaterWalk,
+    Callback = function(Value)
+        Settings.Movement.WaterWalk = Value
+    end
+})
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- ═══════════════════════════════════════════════════════════════════════════
+-- UNIVERSAL TAB
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local UniversalHitbox = Tabs.Universal:AddLeftGroupbox("Hitbox Expander")
+
+UniversalHitbox:AddToggle("HitboxExpander", {
+    Text = "Enable Hitbox Expander",
+    Default = false,
+    Tooltip = "Expands player hitboxes",
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.HitboxExpander = Value
+    end
+})
+
+UniversalHitbox:AddSlider("HitboxSize", {
+    Text = "Hitbox Size",
+    Default = 10,
+    Min = 2,
+    Max = 30,
+    Rounding = 0,
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.HitboxSize = Value
+    end
+})
+
+UniversalHitbox:AddSlider("HitboxTransparency", {
+    Text = "Hitbox Transparency",
+    Default = 0.5,
+    Min = 0,
+    Max = 1,
+    Rounding = 2,
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.HitboxTransparency = Value
+    end
+})
+
+local UniversalFling = Tabs.Universal:AddRightGroupbox("Fling Features")
+
+UniversalFling:AddToggle("WalkFling", {
+    Text = "Walk Fling",
+    Default = false,
+    Tooltip = "Flings players you walk into",
+    Risky = true,
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.WalkFling = Value
+    end
+})
+
+UniversalFling:AddSlider("FlingPower", {
+    Text = "Fling Power",
+    Default = 500,
+    Min = 100,
+    Max = 2000,
+    Rounding = 0,
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.FlingPower = Value
+    end
+})
+
+UniversalFling:AddToggle("AntiFling", {
+    Text = "Anti Fling",
+    Default = false,
+    Tooltip = "Prevents you from being flung",
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.AntiFling = Value
+    end
+})
+
+local UniversalProtection = Tabs.Universal:AddLeftGroupbox("Protection")
+
+UniversalProtection:AddToggle("AntiRagdoll", {
+    Text = "Anti Ragdoll",
+    Default = false,
+    Tooltip = "Prevents ragdoll state",
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.AntiRagdoll = Value
+    end
+})
+
+UniversalProtection:AddToggle("AntiKnockback", {
+    Text = "Anti Knockback",
+    Default = false,
+    Tooltip = "Reduces knockback effects",
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.AntiKnockback = Value
+    end
+})
+
+UniversalProtection:AddToggle("AntiSlow", {
+    Text = "Anti Slow",
+    Default = false,
+    Tooltip = "Prevents slow effects",
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.AntiSlow = Value
+    end
+})
+
+UniversalProtection:AddToggle("GodMode", {
+    Text = "God Mode (FE)",
+    Default = false,
+    Tooltip = "Attempts FE god mode",
+    Risky = true,
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.GodMode = Value
+    end
+})
+
+local UniversalMisc = Tabs.Universal:AddRightGroupbox("Universal Utilities")
+
+UniversalMisc:AddToggle("InfiniteJump", {
+    Text = "Infinite Jump",
+    Default = false,
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.InfiniteJump = Value
+    end
+})
+
+UniversalMisc:AddToggle("RemoveJumpCooldown", {
+    Text = "Remove Jump Cooldown",
+    Default = false,
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.RemoveJumpCooldown = Value
+    end
+})
+
+UniversalMisc:AddToggle("PlatformStand", {
+    Text = "Platform Stand",
+    Default = false,
+    Tooltip = "Enables PlatformStand state",
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.PlatformStand = Value
+        local humanoid = GetHumanoid()
+        if humanoid then
+            humanoid.PlatformStand = Value
+        end
+    end
+})
+
+UniversalMisc:AddToggle("NoClipToggle", {
+    Text = "No Clip",
+    Default = false,
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.NoClip = Value
+    end
+})
+
+local UniversalTeleport = Tabs.Universal:AddLeftGroupbox("Teleport")
+
+UniversalTeleport:AddToggle("ClickTPUniversal", {
+    Text = "Click Teleport",
+    Default = false,
+    Tooltip = "Hold key and click to teleport",
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.ClickTP = Value
+    end
+})
+
+UniversalTeleport:AddLabel("TP Key"):AddKeyPicker("ClickTPKey", {
+    Default = "E",
+    SyncToggleState = false,
+    Mode = "Hold",
+    Text = "TP Key",
+    NoUI = false,
+})
+
+UniversalTeleport:AddToggle("TPToPlayers", {
+    Text = "TP To Nearest Player",
+    Default = false,
+    Tooltip = "Teleport to nearest player",
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.TPToPlayers = Value
+    end
+})
+
+local UniversalCharacter = Tabs.Universal:AddRightGroupbox("Character Mods")
+
+UniversalCharacter:AddToggle("BigHead", {
+    Text = "Big Head (Others)",
+    Default = false,
+    Tooltip = "Makes other players heads bigger",
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.BigHead = Value
+    end
+})
+
+UniversalCharacter:AddSlider("HeadSize", {
+    Text = "Head Size",
+    Default = 5,
+    Min = 1,
+    Max = 20,
+    Rounding = 0,
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.HeadSize = Value
+    end
+})
+
+UniversalCharacter:AddToggle("Freecam", {
+    Text = "Freecam",
+    Default = false,
+    Tooltip = "Free camera mode",
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.Freecam = Value
+    end
+})
+
+UniversalCharacter:AddSlider("FreecamSpeed", {
+    Text = "Freecam Speed",
+    Default = 1,
+    Min = 0.5,
+    Max = 5,
+    Rounding = 1,
+    Callback = function(Value)
+        Settings.Universal = Settings.Universal or {}
+        Settings.Universal.FreecamSpeed = Value
+    end
+})
+
+-- MISC TAB
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local MiscUtilities = Tabs.Misc:AddLeftGroupbox("Utilities")
+
+MiscUtilities:AddToggle("AntiAFK", {
+    Text = "Anti AFK",
+    Default = Settings.Misc.AntiAFK,
+    Callback = function(Value)
+        Settings.Misc.AntiAFK = Value
+    end
+})
+
+MiscUtilities:AddToggle("ClickTP", {
+    Text = "Click TP",
+    Default = Settings.Misc.ClickTP,
+    Tooltip = "Hold CTRL and click to teleport",
+    Callback = function(Value)
+        Settings.Misc.ClickTP = Value
+    end
+})
+
+local MiscInfo = Tabs.Misc:AddRightGroupbox("Information")
+
+MiscInfo:AddToggle("ShowFPS", {
+    Text = "Show FPS",
+    Default = Settings.Misc.ShowFPS,
+    Callback = function(Value)
+        Settings.Misc.ShowFPS = Value
+    end
+})
+
+MiscInfo:AddToggle("ShowPing", {
+    Text = "Show Ping",
+    Default = Settings.Misc.ShowPing,
+    Callback = function(Value)
+        Settings.Misc.ShowPing = Value
+    end
+})
+
+MiscInfo:AddToggle("ShowCoordinates", {
+    Text = "Show Coordinates",
+    Default = Settings.Misc.ShowCoordinates,
+    Callback = function(Value)
+        Settings.Misc.ShowCoordinates = Value
+    end
+})
+
+local MiscServer = Tabs.Misc:AddLeftGroupbox("Server")
+
+MiscServer:AddToggle("AutoRejoin", {
+    Text = "Auto Rejoin",
+    Default = Settings.Misc.AutoRejoin,
+    Tooltip = "Automatically rejoin if kicked",
+    Callback = function(Value)
+        Settings.Misc.AutoRejoin = Value
+    end
+})
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- UI SETTINGS TAB
+-- ═══════════════════════════════════════════════════════════════════════════
+
+local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu Settings")
+local UICredits = Tabs["UI Settings"]:AddRightGroupbox("Credits")
+
+-- Menu Settings
+MenuGroup:AddToggle("KeybindFrameShow", {
+    Text = "Keybind Frame",
+    Default = false,
+    Callback = function(Value)
+        Library.KeybindFrame.Visible = Value
+    end
+})
+
+MenuGroup:AddToggle("WatermarkFrameShow", {
+    Text = "Watermark Frame",
+    Default = true,
+    Callback = function(Value)
+        Library:SetWatermarkVisibility(Value)
+    end
+})
+
+MenuGroup:AddDivider()
+
+MenuGroup:AddButton({
+    Text = "Unload Script",
+    Func = function()
+        Library:Unload()
+        Cleanup()
+    end,
+    DoubleClick = true,
+    Tooltip = "Double-click to unload"
+})
+
+MenuGroup:AddDivider()
+
+MenuGroup:AddLabel("Menu Keybind"):AddKeyPicker("MenuKeybind", {
+    Default = "RightShift",
+    SyncToggleState = true,
+    Mode = "Toggle",
+    Text = "Menu Keybind",
+    NoUI = true,
+})
+
+-- Credits
+UICredits:AddLabel("HYDRA UNIVERSAL V3")
+UICredits:AddLabel("Universal Edition")
+UICredits:AddDivider()
+UICredits:AddLabel("Features:")
+UICredits:AddLabel("- Advanced Aimbot")
+UICredits:AddLabel("- Comprehensive ESP")
+UICredits:AddLabel("- Movement Mods")
+UICredits:AddLabel("- Universal Features")
+UICredits:AddDivider()
+UICredits:AddLabel("Made with Obsidian UI")
+
+Library.ToggleKeybind = Options.MenuKeybind
+
+-- UI Settings
+Library:SetWatermarkVisibility(true)
+
+-- Theme Manager
+ThemeManager:SetLibrary(Library)
+SaveManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({"MenuKeybind"})
+
+ThemeManager:SetFolder("HydraUniversal")
+SaveManager:SetFolder("HydraUniversal/configs")
+
+SaveManager:BuildConfigSection(Tabs["UI Settings"])
+ThemeManager:ApplyToTab(Tabs["UI Settings"])
+
+SaveManager:LoadAutoloadConfig()
+
+print("Hydra Universal V3.0 Loaded Successfully!")
+print(string.format("Loaded in %.2fs", tick() - loadStart))
+Library:Notify("Hydra Universal V3", "Loaded successfully! Press INSERT to toggle UI", 5)
+
+-- END OF SCRIPT
+
