@@ -4631,13 +4631,13 @@ task.wait(0.1)  -- Prevent timeout
 -- SECTION 6: OBSIDIAN UI LIBRARY (Lines 2360+)
 -- ═══════════════════════════════════════════════════════════════════════════
 
-print("Loading Obsidian UI Library...")
+print("Loading Hydra UI Library...")
 
--- Load Obsidian Library
-local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
-local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
-local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
-local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+-- Load Hydra Library
+local repo = "https://raw.githubusercontent.com/HydrasTeam/HydraHub/main/"
+local Library = loadstring(game:HttpGet(repo .. "Libaray.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "SavaManager.lua"))()
 
 local Options = Library.Options
 local Toggles = Library.Toggles
@@ -6140,7 +6140,7 @@ MenuGroup:AddLabel("Menu Keybind"):AddKeyPicker("MenuKeybind", {
 UICredits:AddLabel("HYDRA UNIVERSAL")
 UICredits:AddLabel("By Xeno")
 UICredits:AddDivider()
-UICredits:AddLabel("Made with Obsidian UI")
+UICredits:AddLabel("Made with Hydra UI")
 
 Library.ToggleKeybind = Options.MenuKeybind
 
@@ -6157,10 +6157,8 @@ ThemeManager:SetFolder("HydraUniversal")
 SaveManager:SetFolder("HydraUniversal/configs")
 
 SaveManager:BuildConfigSection(Tabs["UI Settings"])
-ThemeManager:ApplyToTab(Tabs["UI Settings"])
 
 SaveManager:LoadAutoloadConfig()
 Library:Notify("Hydra Universal", "Loaded successfully! Press INSERT to toggle UI", 5)
 
 -- END OF SCRIPT
-
