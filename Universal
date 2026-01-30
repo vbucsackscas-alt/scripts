@@ -4628,7 +4628,7 @@ print("Universal Feature Systems Loaded")
 task.wait(0.1)  -- Prevent timeout
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- SECTION 6: OBSIDIAN UI LIBRARY (Lines 2360+)
+-- SECTION 6: HYDRA UI LIBRARY (Lines 2360+)
 -- ═══════════════════════════════════════════════════════════════════════════
 
 print("Loading Hydra UI Library...")
