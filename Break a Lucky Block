@@ -1,9 +1,9 @@
 -- Hatch A Brainrot Script with UI
 -- Load the Obsidian UI Library
-local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local repo = "https://raw.githubusercontent.com/HydrasTeam/HydraHub/main/"
 local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
-local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
-local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "SaveManager.lua"))()
 
 local Options = Library.Options
 local Toggles = Library.Toggles
@@ -181,32 +181,32 @@ local function SetupBlockDetection()
 end
 
 -- Main Tab
-local MainBox = Tabs.Main:AddLeftGroupbox("Kill Aura")
+local MainBox = Tabs.Main:AddLeftGroupbox("Break Aura")
 
-MainBox:AddToggle("KillAuraToggle", {
-	Text = "Enable Kill Aura",
+MainBox:AddToggle("Break Aura", {
+	Text = "Enable Break Aura",
 	Tooltip = "Automatically damage all blocks in range",
 	Default = false,
 	Callback = function(Value)
 		KillAuraEnabled = Value
 		if Value then
 			StartKillAura()
-			Library:Notify("Kill Aura enabled! (Multi-Hit)", 2)
+			Library:Notify("Break Aura enabled! (Multi-Hit)", 2)
 		else
-			Library:Notify("Kill Aura disabled!", 2)
+			Library:Notify("Break Aura disabled!", 2)
 		end
 	end,
 })
 
-MainBox:AddSlider("KillAuraRange", {
-	Text = "Kill Aura Range",
+MainBox:AddSlider("BreakAuraRange", {
+	Text = "Break Aura Range",
 	Default = 500,
 	Min = 10,
 	Max = 500,
 	Rounding = 0,
 	Compact = false,
 	Callback = function(Value)
-		KillAuraRange = Value
+		BreakAuraRange = Value
 	end,
 })
 
@@ -347,8 +347,7 @@ MenuGroup:AddButton({
 })
 
 MenuGroup:AddDivider()
-MenuGroup:AddLabel("Hatch A Brainrot v1.0")
-MenuGroup:AddLabel("Kill Aura & Detection Script")
+MenuGroup:AddLabel("Break Aura & Detection Script")
 
 -- Build theme and config sections
 ThemeManager:SetLibrary(Library)
@@ -361,7 +360,6 @@ ThemeManager:SetFolder("HatchABrainrotThemes")
 SaveManager:SetFolder("HatchABrainrot/configs")
 
 SaveManager:BuildConfigSection(Tabs.Settings)
-ThemeManager:ApplyToTab(Tabs.Settings)
 
 -- Set the menu keybind
 Library.ToggleKeybind = Options.MenuKeybind
