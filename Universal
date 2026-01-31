@@ -1137,9 +1137,19 @@ function Utils.IsKeyDown(keyCode)
     return false
 end
 
--- Get Part from Bone Name
+-- Get Part from Bone Name (R6/R15 compatible)
 function Utils.GetPartFromBone(character, boneName)
-    return character:FindFirstChild(boneName) or character:FindFirstChild("HumanoidRootPart")
+    local part = character:FindFirstChild(boneName)
+    
+    -- R6 fallback for R15 torso parts
+    if not part then
+        if boneName == "UpperTorso" or boneName == "LowerTorso" then
+            part = character:FindFirstChild("Torso")
+        end
+    end
+    
+    -- Final fallback
+    return part or character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso")
 end
 
 -- Get Closest Bone
@@ -2173,16 +2183,28 @@ function Aimbot:CalculateThreatLevel(player)
     return math.clamp(threat, 0, 100)
 end
 
--- Get best bone for targeting with priority system
+-- Get best bone for targeting with priority system (R6/R15 compatible)
 function Aimbot:GetBestBone(character)
     if not self.Config.BonePriorityEnabled then
-        return character:FindFirstChild(Settings.Aimbot.TargetPart) or character:FindFirstChild("HumanoidRootPart")
+        local targetPart = Settings.Aimbot.TargetPart
+        -- R15 check first, then R6 fallback
+        if targetPart == "UpperTorso" or targetPart == "LowerTorso" then
+            return character:FindFirstChild(targetPart) or character:FindFirstChild("Torso")
+        end
+        return character:FindFirstChild(targetPart) or character:FindFirstChild("HumanoidRootPart")
     end
     
     local priorityList = self.Config.BonePriorityList
     
     for _, boneName in ipairs(priorityList) do
         local bone = character:FindFirstChild(boneName)
+        -- R6 fallback for R15 parts
+        if not bone then
+            if boneName == "UpperTorso" or boneName == "LowerTorso" then
+                bone = character:FindFirstChild("Torso")
+            end
+        end
+        
         if bone then
             -- Check if bone is visible
             if Settings.Aimbot.VisibleCheck then
@@ -2195,8 +2217,8 @@ function Aimbot:GetBestBone(character)
         end
     end
     
-    -- Fallback
-    return character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Head")
+    -- Fallback: R15 first, then R6
+    return character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("Head")
 end
 
 -- Predict if target will be visible in the future
@@ -2481,18 +2503,15 @@ function Aimbot:CalculateAimPosition()
     local character = self.Target.Character
     if not character then return nil end
     
-    -- Get target part directly
-    local targetPart = Utils.GetPartFromBone(character, Settings.Aimbot.TargetPart)
-    if not targetPart then
-        targetPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Head")
-    end
+    -- Use GetTargetPart which handles R6/R15 properly
+    local targetPart = self:GetTargetPart(character)
     if not targetPart then return nil end
     
     local basePosition = targetPart.Position
     
     -- Simple prediction if enabled
     if Settings.Aimbot.UsePrediction then
-        local velocity = targetPart.Velocity
+        local velocity = targetPart.Velocity or targetPart.AssemblyLinearVelocity or Vector3.new()
         if velocity.Magnitude > 0.1 then
             local predTime = Settings.Aimbot.Prediction or 0.1
             local predOffset = velocity * predTime
@@ -2559,9 +2578,17 @@ function Aimbot:UpdateFOVCircle()
         self:CreateFOVCircle()
     end
     
-    -- Update position to mouse
-    local mouseLocation = UserInputService:GetMouseLocation()
-    self.FOVCircle.Position = mouseLocation
+    -- Update position to mouse (use safer method)
+    local success, mouseLocation = pcall(function()
+        return UserInputService:GetMouseLocation()
+    end)
+    
+    if success and mouseLocation then
+        self.FOVCircle.Position = mouseLocation
+    else
+        -- Fallback to screen center if mouse location fails
+        self.FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    end
     
     -- Update properties
     self.FOVCircle.Radius = Settings.Aimbot.FOVRadius
@@ -2638,7 +2665,7 @@ function Aimbot:IsAiming()
     return self.Running
 end
 
--- Get Target Part
+-- Get Target Part (R6/R15 compatible)
 function Aimbot:GetTargetPart(character)
     if not character then return nil end
     
@@ -2648,16 +2675,26 @@ function Aimbot:GetTargetPart(character)
     end
     
     if Settings.Aimbot.TargetPart == "Random" then
-        local parts = {"Head", "UpperTorso", "LowerTorso", "HumanoidRootPart"}
+        local parts = {"Head", "UpperTorso", "LowerTorso", "HumanoidRootPart", "Torso"}
         local randomPart = parts[random(1, #parts)]
-        return character:FindFirstChild(randomPart) or character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Head")
+        local part = character:FindFirstChild(randomPart)
+        if not part and (randomPart == "UpperTorso" or randomPart == "LowerTorso") then
+            part = character:FindFirstChild("Torso") -- R6 fallback
+        end
+        return part or character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("Head")
     end
     
     local part = Utils.GetPartFromBone(character, Settings.Aimbot.TargetPart)
     if part then return part end
     
-    -- Fallbacks
-    return character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Head") or character:FindFirstChild("Torso")
+    -- Try R6 fallback for R15 parts
+    if Settings.Aimbot.TargetPart == "UpperTorso" or Settings.Aimbot.TargetPart == "LowerTorso" then
+        part = character:FindFirstChild("Torso")
+        if part then return part end
+    end
+    
+    -- Final fallbacks: R15 → R6 → Head
+    return character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("Head")
 end
 
 -- Apply Prediction (with safety clamps to prevent wild offsets)
@@ -2735,12 +2772,17 @@ end
 
 -- Aim at Target (Camera Method) - Simplified and stable
 function Aimbot:AimCamera(targetPosition)
-    if not targetPosition then return end
+    if not targetPosition then 
+        self:RestoreSensitivity()
+        return 
+    end
     
-    -- Disable mouse sensitivity while locked (prevents fighting the lock)
-    pcall(function()
-        UserInputService.MouseDeltaSensitivity = 0
-    end)
+    -- Only disable sensitivity if we're actively aiming with Camera method
+    if Settings.Aimbot.AimMethod == "Camera" and self:IsAiming() then
+        pcall(function()
+            UserInputService.MouseDeltaSensitivity = 0
+        end)
+    end
     
     -- Get current camera position
     local camPos = Camera.CFrame.Position
@@ -3395,6 +3437,7 @@ function Aimbot:Update()
     if not self.Target or not Utils.IsPlayerAlive(self.Target) then
         self.Locked = false
         self.Target = nil
+        self:RestoreSensitivity()
         return
     end
     
@@ -3404,6 +3447,8 @@ function Aimbot:Update()
     -- Verify target is still valid after info update
     if not self.TargetInfo.Player then
         self.Locked = false
+        self.Target = nil
+        self:RestoreSensitivity()
         return
     end
     
@@ -3522,6 +3567,11 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
     local activationMode = GetActivationMode()
     if activationMode == "Always On" and Settings.Aimbot.Enabled then
         Aimbot.Running = true
+    end
+    
+    -- Failsafe: Restore sensitivity if aimbot is not running or disabled
+    if not Settings.Aimbot.Enabled or not Aimbot.Running or not Aimbot.Target then
+        Aimbot:RestoreSensitivity()
     end
     
     Aimbot:Update()
@@ -4333,6 +4383,92 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
         if Camera.FieldOfView ~= Settings.Visuals.FOVAmount then
             Camera.FieldOfView = Settings.Visuals.FOVAmount
         end
+    end
+end))
+
+-- Crosshair Drawing System
+local CrosshairDrawings = {
+    Lines = {},
+    Dot = nil,
+}
+
+-- Create crosshair lines
+for i = 1, 4 do
+    local line = Drawing.new("Line")
+    line.Thickness = 2
+    line.Color = Color3.fromRGB(0, 255, 0)
+    line.Transparency = 1
+    line.Visible = false
+    line.ZIndex = 1000
+    CrosshairDrawings.Lines[i] = line
+    table.insert(DrawingObjects, line)
+end
+
+-- Create crosshair dot
+CrosshairDrawings.Dot = Drawing.new("Circle")
+CrosshairDrawings.Dot.Radius = 2
+CrosshairDrawings.Dot.Filled = true
+CrosshairDrawings.Dot.Color = Color3.fromRGB(0, 255, 0)
+CrosshairDrawings.Dot.Transparency = 1
+CrosshairDrawings.Dot.Visible = false
+CrosshairDrawings.Dot.ZIndex = 1001
+table.insert(DrawingObjects, CrosshairDrawings.Dot)
+
+-- Update crosshair
+table.insert(Connections, RunService.RenderStepped:Connect(function()
+    if not Settings.Visuals.Crosshair then
+        for _, line in pairs(CrosshairDrawings.Lines) do
+            line.Visible = false
+        end
+        CrosshairDrawings.Dot.Visible = false
+        return
+    end
+    
+    local viewportSize = Camera.ViewportSize
+    local center = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+    local size = Settings.Visuals.CrosshairSize or 10
+    local gap = Settings.Visuals.CrosshairGap or 5
+    local color = Settings.Visuals.CrosshairColor or Color3.fromRGB(0, 255, 0)
+    local thickness = Settings.Visuals.CrosshairThickness or 2
+    
+    -- Rainbow mode
+    if Settings.Visuals.CrosshairRainbow then
+        color = Utils.GetRainbowColor(1, 1, 1)
+    end
+    
+    -- Top line
+    CrosshairDrawings.Lines[1].From = Vector2.new(center.X, center.Y - gap)
+    CrosshairDrawings.Lines[1].To = Vector2.new(center.X, center.Y - gap - size)
+    
+    -- Bottom line
+    CrosshairDrawings.Lines[2].From = Vector2.new(center.X, center.Y + gap)
+    CrosshairDrawings.Lines[2].To = Vector2.new(center.X, center.Y + gap + size)
+    
+    -- Left line
+    CrosshairDrawings.Lines[3].From = Vector2.new(center.X - gap, center.Y)
+    CrosshairDrawings.Lines[3].To = Vector2.new(center.X - gap - size, center.Y)
+    
+    -- Right line
+    CrosshairDrawings.Lines[4].From = Vector2.new(center.X + gap, center.Y)
+    CrosshairDrawings.Lines[4].To = Vector2.new(center.X + gap + size, center.Y)
+    
+    -- Update all lines
+    for _, line in pairs(CrosshairDrawings.Lines) do
+        line.Color = color
+        line.Thickness = thickness
+        line.Transparency = Settings.Visuals.CrosshairTransparency or 1
+        line.Visible = true
+    end
+    
+    -- Update dot
+    if Settings.Visuals.CrosshairDot then
+        CrosshairDrawings.Dot.Position = center
+        CrosshairDrawings.Dot.Color = color
+        CrosshairDrawings.Dot.Radius = Settings.Visuals.CrosshairDotSize or 2
+        CrosshairDrawings.Dot.Transparency = Settings.Visuals.CrosshairTransparency or 1
+        CrosshairDrawings.Dot.Visible = true
+    else
+        CrosshairDrawings.Dot.Visible = false
     end
 end))
 
