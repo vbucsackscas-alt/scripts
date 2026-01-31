@@ -2808,16 +2808,25 @@ function Aimbot:AimMouse(targetPosition)
     local screenPos, onScreen = Utils.WorldToScreen(targetPosition)
     
     if onScreen then
-        local currentMouse = UserInputService:GetMouseLocation()
-        local smoothness = Settings.Aimbot.Smoothness
+        local success, currentMouse = pcall(function()
+            return UserInputService:GetMouseLocation()
+        end)
         
-        local lerpedX = currentMouse.X + ((screenPos.X - currentMouse.X) * (1 - Settings.Aimbot.SmoothnessX))
-        local lerpedY = currentMouse.Y + ((screenPos.Y - currentMouse.Y) * (1 - Settings.Aimbot.SmoothnessY))
-        
-        if mousemoveabs then
-            mousemoveabs(lerpedX, lerpedY)
-        elseif Input and Input.MouseMove then
-            Input.MouseMove(lerpedX, lerpedY)
+        if success and currentMouse then
+            local smoothness = Settings.Aimbot.Smoothness
+            
+            local lerpedX = currentMouse.X + ((screenPos.X - currentMouse.X) * (1 - Settings.Aimbot.SmoothnessX))
+            local lerpedY = currentMouse.Y + ((screenPos.Y - currentMouse.Y) * (1 - Settings.Aimbot.SmoothnessY))
+            
+            if mousemoveabs then
+                pcall(function()
+                    mousemoveabs(lerpedX, lerpedY)
+                end)
+            elseif Input and Input.MouseMove then
+                pcall(function()
+                    Input.MouseMove(lerpedX, lerpedY)
+                end)
+            end
         end
     end
 end
