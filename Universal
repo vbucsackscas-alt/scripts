@@ -40,7 +40,7 @@ local Services = setmetatable({}, {
 local Players = Services.Players
 local RunService = Services.RunService
 local UserInputService = Services.UserInputService
-local TweenService = Services.TweenService
+local TweenService = game:GetService("TweenService")
 local Lighting = Services.Lighting
 local Workspace = workspace
 
