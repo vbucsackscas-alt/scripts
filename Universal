@@ -2777,12 +2777,8 @@ function Aimbot:AimCamera(targetPosition)
         return 
     end
     
-    -- Only disable sensitivity if we're actively aiming with Camera method
-    if Settings.Aimbot.AimMethod == "Camera" and self:IsAiming() then
-        pcall(function()
-            UserInputService.MouseDeltaSensitivity = 0
-        end)
-    end
+    -- Don't disable sensitivity - causes shift lock and camera issues
+    -- The camera lerping itself prevents user input from interfering
     
     -- Get current camera position
     local camPos = Camera.CFrame.Position
